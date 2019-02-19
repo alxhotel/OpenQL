@@ -6,6 +6,9 @@
  * @brief  hardware configuration loader
  */
 
+#ifndef QL_HARDWARE_CONFIGURATION_H
+#define QL_HARDWARE_CONFIGURATION_H
+
 #include <iostream>
 #include <fstream>
 #include <string>
@@ -279,3 +282,5 @@ const std::regex hardware_configuration::trim_pattern("^(\\s)+|(\\s)+$");
 const std::regex hardware_configuration::multiple_space_pattern("(\\s)+");
 
 }
+
+#endif // QL_HARDWARE_CONFIGURATION_H
