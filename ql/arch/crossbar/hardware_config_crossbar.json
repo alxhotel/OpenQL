@@ -1,0 +1,254 @@
+{
+	"eqasm_compiler" : "crossbar_compiler",
+
+	"hardware_settings": {
+		"qubit_number": 2,
+		"cycle_time" : 10
+	},
+
+	"resources": {
+		"qubits": {
+		},
+		"barriers": {
+		}
+	},
+
+	"topology": {
+		"grid_size_x": 4,
+		"grid_size_y": 4,
+		"positions": {
+			"0": [1, 0],
+			"1": [0, 0]
+		}
+	},
+
+	"instructions": {
+		"shuttle_up": {
+			"duration": 10,
+			"latency": 0,
+			"matrix": [ [0.0,1.0], [1.0,0.0], [1.0,0.0], [0.0,0.0] ],
+			"cc_light_instr_type": "shuttle",
+			"cc_light_instr": "shuttle_up"
+		},
+		"shuttle_down": {
+			"duration": 10,
+			"latency": 0,
+			"matrix": [ [0.0,1.0], [1.0,0.0], [1.0,0.0], [0.0,0.0] ],
+			"cc_light_instr_type": "shuttle",
+			"cc_light_instr": "shuttle_down"
+		},
+		"shuttle_left": {
+			"duration": 10,
+			"latency": 0,
+			"matrix": [ [0.0,1.0], [1.0,0.0], [1.0,0.0], [0.0,0.0] ],
+			"cc_light_instr_type": "shuttle",
+			"cc_light_instr": "shuttle_left"
+		},
+		"shuttle_right": {
+			"duration": 10,
+			"latency": 0,
+			"matrix": [ [0.0,1.0], [1.0,0.0], [1.0,0.0], [0.0,0.0] ],
+			"cc_light_instr_type": "shuttle",
+			"cc_light_instr": "shuttle_right"
+		},
+		"prep_x": {
+			"duration": 40,
+			"latency": 0,
+			"matrix": [ [0.0,1.0], [1.0,0.0], [1.0,0.0], [0.0,0.0] ],
+			"cc_light_instr_type": "single_qubit_gate",
+			"cc_light_instr": "prep_x"
+		},
+		"prep_y" : {
+			"duration": 40,
+			"latency": 0,
+			"matrix" : [ [0.0,0.0], [1.0,0.0], [1.0,0.0], [0.0,0.0] ],
+			"cc_light_instr_type": "single_qubit_gate",
+			"cc_light_instr": "prep_y"
+		},
+		"prep_z": {
+			"duration": 40,
+			"latency": 0,
+			"matrix": [ [0.0,1.0], [1.0,0.0], [1.0,0.0], [0.0,0.0] ],
+			"cc_light_instr_type": "single_qubit_gate",
+			"cc_light_instr": "prep_z"
+		},
+		"i" : {
+			"duration": 40,
+			"latency": 0,
+			"matrix" : [ [1.0,0.0], [0.0,0.0], [0.0,0.0], [0.0,1.0] ],
+			"cc_light_instr_type": "single_qubit_gate",
+			"cc_light_instr": "i"
+		},
+		"x": {
+			"duration": 40,
+			"latency": 0,
+			"matrix": [ [0.0,1.0], [1.0,0.0], [1.0,0.0], [0.0,0.0] ],
+			"cc_light_instr_type": "single_qubit_gate",
+			"cc_light_instr": "x"
+		},
+		"y": {
+			"duration": 40,
+			"latency": 0,
+			"matrix": [ [0.0,1.0], [1.0,0.0], [1.0,0.0], [0.0,0.0] ],
+			"cc_light_instr_type": "single_qubit_gate",
+			"cc_light_instr": "y"
+		},
+		"z": {
+			"duration": 40,
+			"latency": 0,
+			"matrix": [ [0.0,1.0], [1.0,0.0], [1.0,0.0], [0.0,0.0] ],
+			"cc_light_instr_type": "single_qubit_gate",
+			"cc_light_instr": "z"
+		},
+		"z_shuttle_left": {
+			"duration": 40,
+			"latency": 0,
+			"matrix": [ [0.0,1.0], [1.0,0.0], [1.0,0.0], [0.0,0.0] ],
+			"cc_light_instr_type": "single_qubit_gate",
+			"cc_light_instr": "z_shuttle_left"
+		},
+		"z_shuttle_right": {
+			"duration": 40,
+			"latency": 0,
+			"matrix": [ [0.0,1.0], [1.0,0.0], [1.0,0.0], [0.0,0.0] ],
+			"cc_light_instr_type": "single_qubit_gate",
+			"cc_light_instr": "z_shuttle_right"
+		},
+		"x90" : {
+			"duration": 40,
+			"latency": 0,
+			"matrix" : [ [0.0,0.0], [1.0,0.0], [1.0,0.0], [0.0,0.0] ],
+			"cc_light_instr_type": "single_qubit_gate",
+			"cc_light_instr": "x90"
+		},
+		"y90" : {
+			"duration": 20,
+			"latency": 0,
+			"matrix" : [ [0.7071068,0.0], [-0.7071068,0.0], [0.7071068,0.0], [ 0.7071068,0.0] ],
+			"cc_light_instr_type": "single_qubit_gate",
+			"cc_light_instr": "y90"
+		},
+		"x180" : {
+			"duration": 40,
+			"latency": 0,
+			"matrix" : [ [0.0,0.0], [1.0,0.0], [1.0,0.0], [0.0,0.0] ],
+			"cc_light_instr_type": "single_qubit_gate",
+			"cc_light_instr": "x180"
+		},
+		"y180" : {
+			"duration": 40,
+			"latency": 0,
+			"matrix" : [ [0.0,0.0], [1.0,0.0], [1.0,0.0], [0.0,0.0] ],
+			"cc_light_instr_type": "single_qubit_gate",
+			"cc_light_instr": "y180"
+		},
+		"mx90" : {
+			"duration": 40,
+			"latency": 0,
+			"matrix" : [ [0.0,0.0], [1.0,0.0], [1.0,0.0], [0.0,0.0] ],
+			"cc_light_instr_type": "single_qubit_gate",
+			"cc_light_instr": "mx90"
+		},
+		"my90" : {
+			"duration": 20,
+			"latency": 0,
+			"matrix" : [ [0.7071068,0.0], [-0.7071068,0.0], [0.7071068,0.0], [ 0.7071068,0.0] ],
+			"cc_light_instr_type": "single_qubit_gate",
+			"cc_light_instr": "my90"
+		},
+		"rx": {
+			"duration": 40,
+			"latency": 0,
+			"matrix": [ [0.0,1.0], [1.0,0.0], [1.0,0.0], [0.0,0.0] ],
+			"cc_light_instr_type": "single_qubit_gate",
+			"cc_light_instr": "rx"
+		},
+		"ry": {
+			"duration": 40,
+			"latency": 0,
+			"matrix": [ [0.0,1.0], [1.0,0.0], [1.0,0.0], [0.0,0.0] ],
+			"cc_light_instr_type": "single_qubit_gate",
+			"cc_light_instr": "ry"
+		},
+		"rz": {
+			"duration": 40,
+			"latency": 0,
+			"matrix": [ [0.0,1.0], [1.0,0.0], [1.0,0.0], [0.0,0.0] ],
+			"cc_light_instr_type": "single_qubit_gate",
+			"cc_light_instr": "rz"
+		},
+		"rx90": {
+			"duration": 40,
+			"latency": 0,
+			"matrix": [ [0.0,1.0], [1.0,0.0], [1.0,0.0], [0.0,0.0] ],
+			"cc_light_instr_type": "single_qubit_gate",
+			"cc_light_instr": "rx90"
+		},
+		"ry180": {
+			"duration": 40,
+			"latency": 0,
+			"matrix": [ [0.0,1.0], [1.0,0.0], [1.0,0.0], [0.0,0.0] ],
+			"cc_light_instr_type": "single_qubit_gate",
+			"cc_light_instr": "ry180"
+		},
+		"h": {
+			"duration": 40,
+			"latency": 0,
+			"matrix": [ [0.0,1.0], [1.0,0.0], [1.0,0.0], [0.0,0.0] ],
+			"cc_light_instr_type": "single_qubit_gate",
+			"cc_light_instr": "h"
+		},
+		"s": {
+			"duration": 40,
+			"latency": 0,
+			"matrix": [ [0.0,1.0], [1.0,0.0], [1.0,0.0], [0.0,0.0] ],
+			"cc_light_instr_type": "single_qubit_gate",
+			"cc_light_instr": "s"
+		},
+		"sdag": {
+			"duration": 40,
+			"latency": 0,
+			"matrix": [ [0.0,1.0], [1.0,0.0], [1.0,0.0], [0.0,0.0] ],
+			"cc_light_instr_type": "single_qubit_gate",
+			"cc_light_instr": "sdag"
+		},
+		"t": {
+			"duration": 40,
+			"latency": 0,
+			"matrix": [ [0.0,1.0], [1.0,0.0], [1.0,0.0], [0.0,0.0] ],
+			"cc_light_instr_type": "single_qubit_gate",
+			"cc_light_instr": "t"
+		},
+		"tdag": {
+			"duration": 40,
+			"latency": 0,
+			"matrix": [ [0.0,1.0], [1.0,0.0], [1.0,0.0], [0.0,0.0] ],
+			"cc_light_instr_type": "single_qubit_gate",
+			"cc_light_instr": "tdag"
+		},
+		"sqswap" : {
+ 			"duration": 80,
+			"matrix" : [ [0.0,0.0], [1.0,0.0], [1.0,0.0], [0.0,0.0] ],
+			"cc_light_instr_type": "two_qubit_gate",
+			"cc_light_instr": "sqswap"
+		},
+		"measure": {
+			"duration": 40,
+			"latency": 0,
+			"matrix": [ [0.0,1.0], [1.0,0.0], [1.0,0.0], [0.0,0.0] ],
+			"cc_light_instr_type": "measurement_gate",
+			"cc_light_instr": "measure_z"
+		},
+		"measure_z": {
+			"duration": 40,
+			"latency": 0,
+			"matrix": [ [0.0,1.0], [1.0,0.0], [1.0,0.0], [0.0,0.0] ],
+			"cc_light_instr_type": "measurement_gate",
+			"cc_light_instr": "measure_z"
+		}
+	},
+
+	"gate_decomposition": {
+		"cnot %0, %1" : ["sdag %1", "z %0", "h %0", "sdag %0", "sqswap %0, %1", "z %1", "sqswap %0, %1", "z %0"]
+	}
+}

@@ -15,19 +15,15 @@
 
 namespace ql
 {
-    typedef enum {
-        forward_scheduling = 0,
-        backward_scheduling = 1
-    } scheduling_direction_t;
+typedef enum {
+    forward_scheduling = 0,
+    backward_scheduling = 1
+} scheduling_direction_t;
 
-    namespace arch
-    {
-        class resource_t;
-        class resource_manager_t;
-    }
-}
+namespace arch
+{
 
-class ql::arch::resource_t
+class resource_t
 {
 public:
     std::string name;
@@ -36,7 +32,7 @@ public:
 
     resource_t(std::string n, scheduling_direction_t dir) : name(n), direction(dir)
     {
-        DOUT("constructing resource: " << n << " for direction (0:fwd,1:bwd): " << dir);
+        DOUT("constructing resource: " << n << " for direction (0:fwd, 1:bwd): " << dir);
     }
 
     virtual bool available(size_t op_start_cycle, ql::gate * ins, std::string & operation_name,
@@ -54,10 +50,9 @@ public:
     }
 };
 
-class ql::arch::resource_manager_t
+class resource_manager_t
 {
 public:
-
     std::vector<resource_t*> resource_ptrs;
 
     // constructor needed by mapper::FreeCycle to bridge time from its construction to its Init
@@ -150,5 +145,7 @@ public:
     }
 };
 
-#endif // QL_RESOURCE_MANAGER_H
+}
+}
 
+#endif // QL_RESOURCE_MANAGER_H
