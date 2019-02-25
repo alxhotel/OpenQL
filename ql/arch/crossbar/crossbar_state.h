@@ -21,10 +21,43 @@ namespace crossbar
 class crossbar_state_t
 {
 public:
-    std::map<int, std::pair<int, int>> positions;
-    std::map<int, std::map<int, int>> board_state;
+    std::map<size_t, std::pair<size_t, size_t>> positions;
+    std::map<size_t, std::map<size_t, size_t>> board_state;
     
     crossbar_state_t() {}
+    
+    void shuttle_up(size_t qubit_index)
+    {
+        std::pair<size_t, size_t> position = this->positions[qubit_index];
+        this->board_state[position.first][position.second]--;
+        this->board_state[position.first + 1][position.second]++;
+        this->positions[qubit_index].first++;
+    }
+    
+    void shuttle_down(size_t qubit_index)
+    {
+        std::pair<size_t, size_t> position = this->positions[qubit_index];
+        this->board_state[position.first][position.second]--;
+        this->board_state[position.first - 1][position.second]++;
+        this->positions[qubit_index].first--;
+    }
+    
+    void shuttle_left(size_t qubit_index)
+    {
+        std::pair<size_t, size_t> position = this->positions[qubit_index];
+        this->board_state[position.first][position.second]--;
+        this->board_state[position.first][position.second - 1]++;
+        this->positions[qubit_index].second--;
+    }
+    
+    void shuttle_right(size_t qubit_index)
+    {
+        std::pair<size_t, size_t> position = this->positions[qubit_index];
+        this->board_state[position.first][position.second]--;
+        this->board_state[position.first][position.second + 1]++;
+        this->positions[qubit_index].second++;
+    }
+    
 };
 
 }

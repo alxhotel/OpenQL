@@ -16,7 +16,10 @@
 #include <ql/resource_manager.h>
 #include <ql/arch/crossbar/crossbar_state.h>
 #include <ql/arch/crossbar/resources/crossbar_qubit_resource.h>
+#include <ql/arch/crossbar/resources/crossbar_site_resource.h>
 #include <ql/arch/crossbar/resources/crossbar_barrier_resource.h>
+#include <ql/arch/crossbar/resources/crossbar_qubit_line_resource.h>
+#include <ql/arch/crossbar/resources/crossbar_wave_resource.h>
 
 namespace ql
 {
@@ -103,10 +106,55 @@ public:
                 resource_t * barrier_resource = new crossbar_barrier_resource_t(platform, dir, crossbar_state);
                 resource_ptrs.push_back(barrier_resource);
             }
-            else
+            else if (key == "qubit_lines")
+            {
+                resource_t * qubit_line_resource = new crossbar_qubit_line_resource_t(platform, dir, crossbar_state);
+                resource_ptrs.push_back(qubit_line_resource);
+            }
+            else if (key == "wave")
+            {
+                resource_t * wave_resource = new crossbar_wave_resource_t(platform, dir);
+                resource_ptrs.push_back(wave_resource);
+            }
+            else if (key == "sites")
+            {
+                resource_t * site_resource = new crossbar_site_resource_t(platform, dir, crossbar_state);
+                resource_ptrs.push_back(site_resource);
+            }else
             {
                 COUT("Error : Un-modelled resource: '" << key << "'");
                 throw ql::exception("[x] Error : Un-modelled resource: " + key + " !", false);
+            }
+        }
+    }
+    
+    void reserve(size_t op_start_cycle, ql::gate * ins, std::string & operation_name,
+        std::string & operation_type, std::string & instruction_type, size_t operation_duration)
+    {
+        // Call parent method
+        resource_manager_t::reserve(op_start_cycle, ins, operation_name,
+            operation_type, instruction_type, operation_duration);
+        
+        // Update the crossbar state
+        if (instruction_type.compare("shuttle") == 0)
+        {
+            size_t qubit_index = ins->operands[0];
+            
+            if (operation_name.compare("shuttle_up") == 0)
+            {
+                crossbar_state->shuttle_up(qubit_index);
+            }
+            else if (operation_name.compare("shuttle_down") == 0)
+            {
+                crossbar_state->shuttle_down(qubit_index);
+            }
+            else if (operation_name.compare("shuttle_left") == 0)
+            {
+                crossbar_state->shuttle_left(qubit_index);
+            }
+            else if (operation_name.compare("shuttle_right") == 0)
+            {
+                crossbar_state->shuttle_right(qubit_index);
             }
         }
     }

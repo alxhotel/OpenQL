@@ -11,7 +11,6 @@
 #include <vector>
 #include <ql/resource_manager.h>
 #include <ql/arch/crossbar/crossbar_state.h>
-#include <ql/arch/crossbar/crossbar_resource_manager.h>
 
 namespace ql
 {
@@ -61,9 +60,6 @@ public:
     bool available(size_t op_start_cycle, ql::gate * ins, std::string & operation_name,
         std::string & operation_type, std::string & instruction_type, size_t operation_duration)
     {
-        if (direction == backward_scheduling) EOUT("Backwards scheduling not implemented");
-        
-        int n = crossbar_state->board_state.size();
         std::pair<int, int> pos_a = crossbar_state->positions[ins->operands[0]];
         
         if (instruction_type.compare("shuttle") == 0)
@@ -72,14 +68,14 @@ public:
             if (operation_name.compare("shuttle_up") == 0 || operation_name.compare("shuttle_down") == 0)
             {                
                 // Barrier at the left
-                if (pos_a.second - 1 >= 0 && op_start_cycle < vertical_barrier_busy[pos_a.second - 1])
+                if (!check_vertical_barrier(op_start_cycle, operation_duration, pos_a.second - 1))
                 {
                     DOUT("    " << name << " resource busy ...");
                     return false;
                 }
                 
                 // Barrier at the right
-                if (pos_a.second < n - 1 && op_start_cycle < vertical_barrier_busy[pos_a.second])
+                if (!check_vertical_barrier(op_start_cycle, operation_duration, pos_a.second))
                 {
                     DOUT("    " << name << " resource busy ...");
                     return false;
@@ -96,21 +92,21 @@ public:
                 }
                 
                 // Barrier between qubit and destination
-                if (op_start_cycle < horizontal_barrier_busy[middle_barrier])
+                if (!check_horizontal_barrier(op_start_cycle, operation_duration, middle_barrier))
                 {
                     DOUT("    " << name << " resource busy ...");
                     return false;
                 }
                 
                 // Barrier at the top
-                if (middle_barrier + 1 < n - 1 && op_start_cycle < horizontal_barrier_busy[middle_barrier + 1])
+                if (!check_horizontal_barrier(op_start_cycle, operation_duration, middle_barrier + 1))
                 {
                     DOUT("    " << name << " resource busy ...");
                     return false;
                 }
                 
                 // Barrier at the bottom
-                if (middle_barrier - 1 >= 0 && op_start_cycle < horizontal_barrier_busy[middle_barrier - 1])
+                if (!check_horizontal_barrier(op_start_cycle, operation_duration, middle_barrier - 1))
                 {
                     DOUT("    " << name << " resource busy ...");
                     return false;
@@ -119,14 +115,14 @@ public:
             else if (operation_name.compare("shuttle_left") == 0 || operation_name.compare("shuttle_right") == 0)
             {                
                 // Barrier at the top
-                if (pos_a.first < n - 1 && op_start_cycle < horizontal_barrier_busy[pos_a.first])
+                if (!check_horizontal_barrier(op_start_cycle, operation_duration, pos_a.first))
                 {
                     DOUT("    " << name << " resource busy ...");
                     return false;
                 }
                 
                 // Barrier at the bottom
-                if (pos_a.first - 1 >= 0 && op_start_cycle < horizontal_barrier_busy[pos_a.first - 1])
+                if (!check_horizontal_barrier(op_start_cycle, operation_duration, pos_a.first - 1))
                 {
                     DOUT("    " << name << " resource busy ...");
                     return false;
@@ -143,21 +139,21 @@ public:
                 }
                 
                 // Barrier between qubit and destination
-                if (op_start_cycle < vertical_barrier_busy[middle_barrier])
+                if (!check_vertical_barrier(op_start_cycle, operation_duration, middle_barrier))
                 {
                     DOUT("    " << name << " resource busy ...");
                     return false;
                 }
                 
                 // Barrier at the left
-                if (middle_barrier - 1 >= 0 && op_start_cycle < vertical_barrier_busy[middle_barrier - 1])
+                if (!check_vertical_barrier(op_start_cycle, operation_duration, middle_barrier - 1))
                 {
                     DOUT("    " << name << " resource busy ...");
                     return false;
                 }
                 
                 // Barrier at the right
-                if (middle_barrier + 1 < n - 1 && op_start_cycle < vertical_barrier_busy[middle_barrier + 1])
+                if (!check_vertical_barrier(op_start_cycle, operation_duration, middle_barrier + 1))
                 {
                     DOUT("    " << name << " resource busy ...");
                     return false;
@@ -169,14 +165,14 @@ public:
             if (operation_name.compare("z_shuttle_left") == 0 || operation_name.compare("z_shuttle_right") == 0)
             {
                 // Barrier at the top
-                if (pos_a.first < n - 1 && op_start_cycle < horizontal_barrier_busy[pos_a.first])
+                if (!check_horizontal_barrier(op_start_cycle, operation_duration, pos_a.first))
                 {
                     DOUT("    " << name << " resource busy ...");
                     return false;
                 }
                 
                 // Barrier at the bottom
-                if (pos_a.first - 1 >= 0 && op_start_cycle < horizontal_barrier_busy[pos_a.first - 1])
+                if (!check_horizontal_barrier(op_start_cycle, operation_duration, pos_a.first - 1))
                 {
                     DOUT("    " << name << " resource busy ...");
                     return false;
@@ -193,21 +189,21 @@ public:
                 }
                 
                 // Barrier between qubit and destination
-                if (op_start_cycle < vertical_barrier_busy[middle_barrier])
+                if (!check_vertical_barrier(op_start_cycle, operation_duration, middle_barrier))
                 {
                     DOUT("    " << name << " resource busy ...");
                     return false;
                 }
                 
                 // Barrier at the left
-                if (middle_barrier - 1 >= 0 && op_start_cycle < vertical_barrier_busy[middle_barrier - 1])
+                if (!check_vertical_barrier(op_start_cycle, operation_duration, middle_barrier - 1))
                 {
                     DOUT("    " << name << " resource busy ...");
                     return false;
                 }
                 
                 // Barrier at the right
-                if (middle_barrier + 1 < n - 1 && op_start_cycle < vertical_barrier_busy[middle_barrier + 1])
+                if (!check_vertical_barrier(op_start_cycle, operation_duration, middle_barrier + 1))
                 {
                     DOUT("    " << name << " resource busy ...");
                     return false;
@@ -218,12 +214,12 @@ public:
                 // Single gate
                 for (size_t i = 0; i < count; i++)
                 {
-                    if (op_start_cycle < vertical_barrier_busy[i])
+                    if (!check_vertical_barrier(op_start_cycle, operation_duration, i))
                     {
                         DOUT("    " << name << " resource busy ...");
                         return false;
                     }
-                    if (op_start_cycle < horizontal_barrier_busy[i])
+                    if (!check_horizontal_barrier(op_start_cycle, operation_duration, i))
                     {
                         DOUT("    " << name << " resource busy ...");
                         return false;
@@ -239,35 +235,35 @@ public:
             int middle_barrier = std::min(pos_a.first, pos_b.first);
             
             // Barrier between qubits
-            if (op_start_cycle < horizontal_barrier_busy[middle_barrier])
+            if (!check_horizontal_barrier(op_start_cycle, operation_duration, middle_barrier))
             {
                 DOUT("    " << name << " resource busy ...");
                 return false;
             }
             
             // Barrier at the left
-            if (column - 1 >= 0 && op_start_cycle < vertical_barrier_busy[column - 1])
+            if (!check_vertical_barrier(op_start_cycle, operation_duration, column - 1))
             {
                 DOUT("    " << name << " resource busy ...");
                 return false;
             }
             
             // Barrier at the right
-            if (column < n - 1 && op_start_cycle < vertical_barrier_busy[column])
+            if (!check_vertical_barrier(op_start_cycle, operation_duration, column))
             {
                 DOUT("    " << name << " resource busy ...");
                 return false;
             }
             
             // Barrier at the top
-            if (middle_barrier + 1 < n - 1 && op_start_cycle < horizontal_barrier_busy[middle_barrier + 1])
+            if (!check_horizontal_barrier(op_start_cycle, operation_duration, middle_barrier + 1))
             {
                 DOUT("    " << name << " resource busy ...");
                 return false;
             }
             
             // Barrier at the bottom
-            if (middle_barrier - 1 >= 0 && op_start_cycle < horizontal_barrier_busy[middle_barrier - 1])
+            if (!check_horizontal_barrier(op_start_cycle, operation_duration, middle_barrier - 1))
             {
                 DOUT("    " << name << " resource busy ...");
                 return false;
@@ -282,14 +278,14 @@ public:
             // --------------------------------
             
             // Barrier at the top
-            if (pos_a.first < n - 1 && op_start_cycle < horizontal_barrier_busy[pos_a.first])
+            if (!check_horizontal_barrier(op_start_cycle, operation_duration, pos_a.first))
             {
                 DOUT("    " << name << " resource busy ...");
                 return false;
             }
 
             // Barrier at the bottom
-            if (pos_a.first - 1 >= 0 && op_start_cycle < horizontal_barrier_busy[pos_a.first - 1])
+            if (!check_horizontal_barrier(op_start_cycle, operation_duration, pos_a.first - 1))
             {
                 DOUT("    " << name << " resource busy ...");
                 return false;
@@ -306,21 +302,21 @@ public:
             }
             
             // Barrier between data and ancilla
-            if (op_start_cycle < vertical_barrier_busy[middle_barrier])
+            if (!check_vertical_barrier(op_start_cycle, operation_duration, middle_barrier))
             {
                 DOUT("    " << name << " resource busy ...");
                 return false;
             }
 
             // Barrier at the left
-            if (middle_barrier - 1 >= 0 && op_start_cycle < vertical_barrier_busy[middle_barrier - 1])
+            if (!check_vertical_barrier(op_start_cycle, operation_duration, middle_barrier - 1))
             {
                 DOUT("    " << name << " resource busy ...");
                 return false;
             }
 
             // Barrier at the right
-            if (middle_barrier + 1 < n - 1 && op_start_cycle < vertical_barrier_busy[middle_barrier + 1])
+            if (!check_vertical_barrier(op_start_cycle, operation_duration, middle_barrier + 1))
             {
                 DOUT("    " << name << " resource busy ...");
                 return false;
@@ -331,14 +327,14 @@ public:
             // ---------------------------------
             
             // Barrier at the left
-            if (pos_a.second - 1 >= 0 && op_start_cycle < vertical_barrier_busy[pos_a.second - 1])
+            if (!check_vertical_barrier(op_start_cycle, operation_duration, pos_a.second - 1))
             {
                 DOUT("    " << name << " resource busy ...");
                 return false;
             }
 
             // Barrier at the right
-            if (pos_a.second < n - 1 && op_start_cycle < vertical_barrier_busy[pos_a.second])
+            if (!check_vertical_barrier(op_start_cycle, operation_duration, pos_a.second))
             {
                 DOUT("    " << name << " resource busy ...");
                 return false;
@@ -354,21 +350,21 @@ public:
             }
             
             // Barrier between sites
-            if (op_start_cycle < horizontal_barrier_busy[middle_barrier])
+            if (!check_horizontal_barrier(op_start_cycle, operation_duration, middle_barrier))
             {
                 DOUT("    " << name << " resource busy ...");
                 return false;
             }
 
             // Barrier at the top
-            if (middle_barrier + 1 >= 0 && op_start_cycle < horizontal_barrier_busy[middle_barrier + 1])
+            if (!check_horizontal_barrier(op_start_cycle, operation_duration, middle_barrier + 1))
             {
                 DOUT("    " << name << " resource busy ...");
                 return false;
             }
 
             // Barrier at the bottom
-            if (middle_barrier - 1 < n - 1 && op_start_cycle < horizontal_barrier_busy[middle_barrier - 1])
+            if (!check_horizontal_barrier(op_start_cycle, operation_duration, middle_barrier - 1))
             {
                 DOUT("    " << name << " resource busy ...");
                 return false;
@@ -382,8 +378,6 @@ public:
     void reserve(size_t op_start_cycle, ql::gate * ins, std::string & operation_name,
         std::string & operation_type, std::string & instruction_type, size_t operation_duration)
     {
-        if (direction == backward_scheduling) EOUT("Backwards scheduling not implemented");
-
         int n = crossbar_state->board_state.size();
         std::pair<int, int> pos_a = crossbar_state->positions[ins->operands[0]];
         
@@ -395,13 +389,13 @@ public:
                 // Barrier at the left
                 if (pos_a.second - 1 >= 0)
                 {
-                    vertical_barrier_busy[pos_a.second - 1] = (direction == forward_scheduling) ? op_start_cycle + operation_duration : op_start_cycle;
+                    reserve_vertical_barrier(op_start_cycle, operation_duration, pos_a.second - 1);
                 }
                 
                 // Barrier at the right
                 if (pos_a.second < n - 1)
                 {
-                    vertical_barrier_busy[pos_a.second] = (direction == forward_scheduling) ? op_start_cycle + operation_duration : op_start_cycle;
+                    reserve_vertical_barrier(op_start_cycle, operation_duration, pos_a.second);
                 }
                 
                 int middle_barrier = 0;
@@ -415,18 +409,18 @@ public:
                 }
                 
                 // Barrier between qubit and destination
-                horizontal_barrier_busy[middle_barrier] = (direction == forward_scheduling) ? op_start_cycle + operation_duration : op_start_cycle;
+                reserve_horizontal_barrier(op_start_cycle, operation_duration, middle_barrier);
                 
                 // Barrier at the top
                 if (middle_barrier + 1 < n - 1)
                 {
-                    horizontal_barrier_busy[middle_barrier + 1] = (direction == forward_scheduling) ? op_start_cycle + operation_duration : op_start_cycle;
+                    reserve_horizontal_barrier(op_start_cycle, operation_duration, middle_barrier + 1);
                 }
                 
                 // Barrier at the bottom
                 if (middle_barrier - 1 >= 0)
                 {
-                    horizontal_barrier_busy[middle_barrier - 1] = (direction == forward_scheduling) ? op_start_cycle + operation_duration : op_start_cycle;
+                    reserve_horizontal_barrier(op_start_cycle, operation_duration, middle_barrier - 1);
                 }
             }
             else if (operation_name.compare("shuttle_left") == 0 || operation_name.compare("shuttle_right") == 0)
@@ -434,13 +428,13 @@ public:
                 // Barrier at the top
                 if (pos_a.first < n - 1)
                 {
-                    horizontal_barrier_busy[pos_a.first] = (direction == forward_scheduling) ? op_start_cycle + operation_duration : op_start_cycle;
+                    reserve_horizontal_barrier(op_start_cycle, operation_duration, pos_a.first);
                 }
                 
                 // Barrier at the bottom
                 if (pos_a.first - 1 >= 0)
                 {
-                    horizontal_barrier_busy[pos_a.first - 1] = (direction == forward_scheduling) ? op_start_cycle + operation_duration : op_start_cycle;
+                    reserve_horizontal_barrier(op_start_cycle, operation_duration, pos_a.first - 1);
                 }
                 
                 int middle_barrier = 0;
@@ -454,18 +448,18 @@ public:
                 }
                 
                 // Barrier between qubit and destination
-                vertical_barrier_busy[middle_barrier] = (direction == forward_scheduling) ? op_start_cycle + operation_duration : op_start_cycle;
+                reserve_vertical_barrier(op_start_cycle, operation_duration, middle_barrier);
                 
                 // Barrier at the left
                 if (middle_barrier - 1 >= 0)
                 {
-                    vertical_barrier_busy[middle_barrier - 1] = (direction == forward_scheduling) ? op_start_cycle + operation_duration : op_start_cycle;
+                    reserve_vertical_barrier(op_start_cycle, operation_duration, middle_barrier - 1);
                 }
                 
                 // Barrier at the right
                 if (middle_barrier + 1 < n - 1)
                 {
-                    vertical_barrier_busy[middle_barrier + 1] = (direction == forward_scheduling) ? op_start_cycle + operation_duration : op_start_cycle;
+                    reserve_vertical_barrier(op_start_cycle, operation_duration, middle_barrier + 1);
                 }
             }
         }
@@ -476,13 +470,13 @@ public:
                 // Barrier at the top
                 if (pos_a.first < n - 1)
                 {
-                    horizontal_barrier_busy[pos_a.first] = (direction == forward_scheduling) ? op_start_cycle + operation_duration : op_start_cycle;
+                    reserve_horizontal_barrier(op_start_cycle, operation_duration, pos_a.first);
                 }
                 
                 // Barrier at the bottom
                 if (pos_a.first - 1 >= 0)
                 {
-                    horizontal_barrier_busy[pos_a.first - 1] = (direction == forward_scheduling) ? op_start_cycle + operation_duration : op_start_cycle;
+                    reserve_horizontal_barrier(op_start_cycle, operation_duration, pos_a.first - 1);
                 }
                 
                 int middle_barrier = 0;
@@ -496,18 +490,18 @@ public:
                 }
                 
                 // Barrier between qubit and destination
-                vertical_barrier_busy[middle_barrier] = (direction == forward_scheduling) ? op_start_cycle + operation_duration : op_start_cycle;
+                reserve_vertical_barrier(op_start_cycle, operation_duration, middle_barrier);
                 
                 // Barrier at the left
                 if (middle_barrier - 1 >= 0)
                 {
-                    vertical_barrier_busy[middle_barrier - 1] = (direction == forward_scheduling) ? op_start_cycle + operation_duration : op_start_cycle;
+                    reserve_vertical_barrier(op_start_cycle, operation_duration, middle_barrier - 1);
                 }
                 
                 // Barrier at the right
                 if (middle_barrier + 1 < n - 1)
                 {
-                    vertical_barrier_busy[middle_barrier + 1] = (direction == forward_scheduling) ? op_start_cycle + operation_duration : op_start_cycle;
+                    reserve_vertical_barrier(op_start_cycle, operation_duration, middle_barrier + 1);
                 }
             }
             else
@@ -515,8 +509,8 @@ public:
                 // Single gate
                 for (size_t i = 0; i < count; i++)
                 {
-                    vertical_barrier_busy[i] = (direction == forward_scheduling) ? op_start_cycle + operation_duration : op_start_cycle;
-                    horizontal_barrier_busy[i] = (direction == forward_scheduling) ? op_start_cycle + operation_duration : op_start_cycle;
+                    reserve_vertical_barrier(op_start_cycle, operation_duration, i);
+                    reserve_horizontal_barrier(op_start_cycle, operation_duration, i);
                 }
             }
         }
@@ -528,30 +522,30 @@ public:
             int middle_barrier = std::min(pos_a.first, pos_b.first);
 
             // Barrier between qubits
-            horizontal_barrier_busy[middle_barrier] = (direction == forward_scheduling) ? op_start_cycle + operation_duration : op_start_cycle;
+            reserve_horizontal_barrier(op_start_cycle, operation_duration, middle_barrier);
             
             // Barriers at the left
             if (column > 0)
             {
-                horizontal_barrier_busy[column - 1] = (direction == forward_scheduling) ? op_start_cycle + operation_duration : op_start_cycle;
+                reserve_horizontal_barrier(op_start_cycle, operation_duration, column - 1);
             }
             
             // Barrier at the right
             if (column < n - 1)
             {
-                horizontal_barrier_busy[column] = (direction == forward_scheduling) ? op_start_cycle + operation_duration : op_start_cycle;
+                reserve_horizontal_barrier(op_start_cycle, operation_duration, column);
             }
             
             // Barriers at the top
             if (middle_barrier < n - 2)
             {
-                vertical_barrier_busy[middle_barrier + 1] = (direction == forward_scheduling) ? op_start_cycle + operation_duration : op_start_cycle;
+                reserve_vertical_barrier(op_start_cycle, operation_duration, middle_barrier + 1);
             }
             
             // Barrier at the bottom
             if (middle_barrier > 0)
             {
-                vertical_barrier_busy[middle_barrier - 1] = (direction == forward_scheduling) ? op_start_cycle + operation_duration : op_start_cycle;
+                reserve_vertical_barrier(op_start_cycle, operation_duration, middle_barrier - 1);
             }
         }
         else if (instruction_type.compare("measurement_gate") == 0)
@@ -565,13 +559,13 @@ public:
             // Barrier at the top
             if (pos_a.first < n - 1)
             {
-                horizontal_barrier_busy[pos_a.first] = (direction == forward_scheduling) ? op_start_cycle + operation_duration : op_start_cycle;
+                reserve_horizontal_barrier(op_start_cycle, operation_duration, pos_a.first);
             }
 
             // Barrier at the bottom
             if (pos_a.first - 1 >= 0)
             {
-                horizontal_barrier_busy[pos_a.first - 1] = (direction == forward_scheduling) ? op_start_cycle + operation_duration : op_start_cycle;
+                reserve_horizontal_barrier(op_start_cycle, operation_duration, pos_a.first - 1);
             }
             
             int middle_barrier = 0;
@@ -585,18 +579,18 @@ public:
             }
             
             // Barrier between data and ancilla
-            vertical_barrier_busy[middle_barrier] = (direction == forward_scheduling) ? op_start_cycle + operation_duration : op_start_cycle;
+            reserve_vertical_barrier(op_start_cycle, operation_duration, middle_barrier);
             
             // Barrier at the left
             if (middle_barrier - 1 >= 0)
             {
-                vertical_barrier_busy[middle_barrier - 1] = (direction == forward_scheduling) ? op_start_cycle + operation_duration : op_start_cycle;
+                reserve_vertical_barrier(op_start_cycle, operation_duration, middle_barrier - 1);
             }
 
             // Barrier at the right
             if (middle_barrier + 1 < n - 1)
             {
-                vertical_barrier_busy[middle_barrier + 1] = (direction == forward_scheduling) ? op_start_cycle + operation_duration : op_start_cycle;
+                reserve_vertical_barrier(op_start_cycle, operation_duration, middle_barrier + 1);
             }
             
             // --------------------------------
@@ -606,13 +600,13 @@ public:
             // Barrier at the left
             if (pos_a.second - 1 >= 0)
             {
-                vertical_barrier_busy[pos_a.second - 1] = (direction == forward_scheduling) ? op_start_cycle + operation_duration : op_start_cycle;
+                reserve_vertical_barrier(op_start_cycle, operation_duration, pos_a.second - 1);
             }
 
             // Barrier at the right
             if (pos_a.second < n - 1)
             {
-                vertical_barrier_busy[pos_a.second] = (direction == forward_scheduling) ? op_start_cycle + operation_duration : op_start_cycle;
+                reserve_vertical_barrier(op_start_cycle, operation_duration, pos_a.second);
             }
             
             if (operation_name.compare("measure_left_up") == 0 || operation_name.compare("measure_right_up") == 0)
@@ -625,22 +619,80 @@ public:
             }
             
             // Barrier between data and ancilla
-            horizontal_barrier_busy[middle_barrier] = (direction == forward_scheduling) ? op_start_cycle + operation_duration : op_start_cycle;
+            reserve_horizontal_barrier(op_start_cycle, operation_duration, middle_barrier);
             
             // Barrier at the top
             if (middle_barrier + 1 >= 0)
             {
-                horizontal_barrier_busy[middle_barrier + 1] = (direction == forward_scheduling) ? op_start_cycle + operation_duration : op_start_cycle;
+                reserve_horizontal_barrier(op_start_cycle, operation_duration, middle_barrier + 1);
             }
 
             // Barrier at the bottom
             if (middle_barrier - 1 < n - 1)
             {
-                horizontal_barrier_busy[middle_barrier - 1] = (direction == forward_scheduling) ? op_start_cycle + operation_duration : op_start_cycle;
+                reserve_horizontal_barrier(op_start_cycle, operation_duration, middle_barrier - 1);
             }
         }
     }
-    ~crossbar_barrier_resource_t() {}
+
+private:
+    bool check_vertical_barrier(size_t op_start_cycle, size_t operation_duration, size_t index)
+    {
+        size_t n = this->crossbar_state->board_state.size();
+        if (index >= 0 && index <= n - 2)
+        {
+            if (direction == forward_scheduling)
+            {
+                if (vertical_barrier_busy[index] > op_start_cycle)
+                {
+                    return false;
+                }
+            }
+            else
+            {
+                if (vertical_barrier_busy[index] < op_start_cycle + operation_duration)
+                {
+                    return false;
+                }
+            }
+        }
+        
+        return true;
+    }
+    
+    bool check_horizontal_barrier(size_t op_start_cycle, size_t operation_duration, size_t index)
+    {
+        size_t n = this->crossbar_state->board_state.size();
+        if (index >= 0 && index <= n - 2)
+        {
+            if (direction == forward_scheduling)
+            {
+                if (horizontal_barrier_busy[index] > op_start_cycle)
+                {
+                    return false;
+                }
+            }
+            else
+            {
+                if (horizontal_barrier_busy[index] < op_start_cycle + operation_duration)
+                {
+                    return false;
+                }
+            }
+        }
+        
+        return true;
+    }
+    
+    void reserve_vertical_barrier(size_t op_start_cycle, size_t operation_duration, size_t index)
+    {
+        vertical_barrier_busy[index] = (direction == forward_scheduling) ? op_start_cycle + operation_duration : op_start_cycle;
+    }
+    
+    void reserve_horizontal_barrier(size_t op_start_cycle, size_t operation_duration, size_t index)
+    {
+        horizontal_barrier_busy[index] = (direction == forward_scheduling) ? op_start_cycle + operation_duration : op_start_cycle;
+    }
 };
 
 }

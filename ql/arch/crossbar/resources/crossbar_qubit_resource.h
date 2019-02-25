@@ -11,7 +11,6 @@
 #include <vector>
 #include <ql/resource_manager.h>
 #include <ql/arch/crossbar/crossbar_state.h>
-#include <ql/arch/crossbar/crossbar_resource_manager.h>
 
 namespace ql
 {
@@ -49,25 +48,13 @@ public:
     bool available(size_t op_start_cycle, ql::gate * ins, std::string & operation_name,
         std::string & operation_type, std::string & instruction_type, size_t operation_duration)
     {
-        for (auto q : ins->operands)
+        for (auto index : ins->operands)
         {
-            if (direction == forward_scheduling)
+            DOUT(" available " << name << "? op_start_cycle: " << op_start_cycle << "  qubit: " << index << " is busy till cycle : " << state[index]);
+            if (!check_qubit(op_start_cycle, operation_duration, index))
             {
-                DOUT(" available " << name << "? op_start_cycle: " << op_start_cycle << "  qubit: " << q << " is busy till cycle : " << state[q]);
-                if (state[q] > op_start_cycle)
-                {
-                    DOUT("    " << name << " resource busy ...");
-                    return false;
-                }
-            }
-            else
-            {
-                DOUT(" available " << name << "? op_start_cycle: " << op_start_cycle << "  qubit: " << q << " is busy from cycle : " << state[q]);
-                if (state[q] < op_start_cycle + operation_duration)
-                {
-                    DOUT("    " << name << " resource busy ...");
-                    return false;
-                }
+                DOUT("    " << name << " resource busy ...");
+                return false;
             }
         }
         DOUT("    " << name << " resource available ...");
@@ -77,13 +64,42 @@ public:
     void reserve(size_t op_start_cycle, ql::gate * ins, std::string & operation_name,
         std::string & operation_type, std::string & instruction_type, size_t operation_duration)
     {
-        for (auto q : ins->operands)
+        for (auto index: ins->operands)
         {
-            state[q] = (direction == forward_scheduling) ? op_start_cycle + operation_duration : op_start_cycle;
-            DOUT("reserved " << name << ". op_start_cycle: " << op_start_cycle << " qubit: " << q << " reserved till/from cycle: " << state[q]);
+            reserve_qubit(op_start_cycle, operation_duration, index);
+            DOUT("reserved " << name << ". op_start_cycle: " << op_start_cycle << " qubit: " << index << " reserved till/from cycle: " << state[index]);
         }
     }
-    ~crossbar_qubit_resource_t() {}
+
+private:
+    bool check_qubit(size_t op_start_cycle, size_t operation_duration, size_t index)
+    {
+        if (direction == forward_scheduling)
+        {
+            DOUT(" available " << name << "? op_start_cycle: " << op_start_cycle << "  qubit: " << index << " is busy till cycle : " << state[index]);
+            if (state[index] > op_start_cycle)
+            {
+                DOUT("    " << name << " resource busy ...");
+                return false;
+            }
+        }
+        else
+        {
+            DOUT(" available " << name << "? op_start_cycle: " << op_start_cycle << "  qubit: " << index << " is busy from cycle : " << state[index]);
+            if (state[index] < op_start_cycle + operation_duration)
+            {
+                DOUT("    " << name << " resource busy ...");
+                return false;
+            }
+        }
+        
+        return true;
+    }
+    
+    void reserve_qubit(size_t op_start_cycle, size_t operation_duration, size_t index)
+    {
+        state[index] = (direction == forward_scheduling) ? op_start_cycle + operation_duration : op_start_cycle;
+    }
 };
 
 }

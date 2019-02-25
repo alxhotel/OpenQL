@@ -2,50 +2,50 @@
 	"eqasm_compiler" : "crossbar_compiler",
 
 	"hardware_settings": {
-		"qubit_number": 2,
+		"qubit_number": 4,
 		"cycle_time" : 10
 	},
 
 	"resources": {
-		"qubits": {
-		},
-		"barriers": {
-		}
+		"qubits": {},
+		"barriers": {}
 	},
 
 	"topology": {
-		"grid_size_x": 4,
-		"grid_size_y": 4,
+		"grid_size_x": 20,
+		"grid_size_y": 20,
 		"positions": {
-			"0": [1, 0],
-			"1": [0, 0]
+			"0": [0, 0],
+			"1": [1, 0],
+			"2": [1, 10],
+			"3": [2, 10]
 		}
 	},
 
 	"instructions": {
 		"shuttle_up": {
-			"duration": 10,
+			"duration": 20,
 			"latency": 0,
 			"matrix": [ [0.0,1.0], [1.0,0.0], [1.0,0.0], [0.0,0.0] ],
 			"cc_light_instr_type": "shuttle",
 			"cc_light_instr": "shuttle_up"
 		},
 		"shuttle_down": {
-			"duration": 10,
+			"duration": 20,
 			"latency": 0,
 			"matrix": [ [0.0,1.0], [1.0,0.0], [1.0,0.0], [0.0,0.0] ],
 			"cc_light_instr_type": "shuttle",
 			"cc_light_instr": "shuttle_down"
 		},
 		"shuttle_left": {
-			"duration": 10,
+			"duration": 20,
 			"latency": 0,
 			"matrix": [ [0.0,1.0], [1.0,0.0], [1.0,0.0], [0.0,0.0] ],
 			"cc_light_instr_type": "shuttle",
 			"cc_light_instr": "shuttle_left"
 		},
 		"shuttle_right": {
-			"duration": 10,
+			"duration": 20,
 			"latency": 0,
 			"matrix": [ [0.0,1.0], [1.0,0.0], [1.0,0.0], [0.0,0.0] ],
 			"cc_light_instr_type": "shuttle",
@@ -232,19 +232,33 @@
 			"cc_light_instr_type": "two_qubit_gate",
 			"cc_light_instr": "sqswap"
 		},
-		"measure": {
+		"measure_left_up": {
 			"duration": 40,
 			"latency": 0,
 			"matrix": [ [0.0,1.0], [1.0,0.0], [1.0,0.0], [0.0,0.0] ],
 			"cc_light_instr_type": "measurement_gate",
-			"cc_light_instr": "measure_z"
+			"cc_light_instr": "measure_left_up"
 		},
-		"measure_z": {
+		"measure_left_down": {
 			"duration": 40,
 			"latency": 0,
 			"matrix": [ [0.0,1.0], [1.0,0.0], [1.0,0.0], [0.0,0.0] ],
 			"cc_light_instr_type": "measurement_gate",
-			"cc_light_instr": "measure_z"
+			"cc_light_instr": "measure_left_down"
+		},
+		"measure_right_up": {
+			"duration": 40,
+			"latency": 0,
+			"matrix": [ [0.0,1.0], [1.0,0.0], [1.0,0.0], [0.0,0.0] ],
+			"cc_light_instr_type": "measurement_gate",
+			"cc_light_instr": "measure_right_up"
+		},
+		"measure_right_down": {
+			"duration": 40,
+			"latency": 0,
+			"matrix": [ [0.0,1.0], [1.0,0.0], [1.0,0.0], [0.0,0.0] ],
+			"cc_light_instr_type": "measurement_gate",
+			"cc_light_instr": "measure_right_down"
 		}
 	},
 
