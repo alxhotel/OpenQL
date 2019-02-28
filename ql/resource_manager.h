@@ -4,7 +4,7 @@
  * @author Imran Ashraf
  * @date   09/2018
  * @author Hans van Someren
- * @brief  Resource mangement for cc light platform
+ * @brief  Resource management
  */
 
 #ifndef QL_RESOURCE_MANAGER_H

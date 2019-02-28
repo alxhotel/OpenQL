@@ -36,10 +36,11 @@ public:
     std::map<int, size_t> line_busy;
     
     crossbar_qubit_line_resource_t(const ql::quantum_platform & platform,
-        ql::scheduling_direction_t dir, crossbar_state_t * crossbar_state_local) : resource_t("qubit_lines", dir)
+        ql::scheduling_direction_t dir, crossbar_state_t * crossbar_state_local)
+        : resource_t("qubit_lines", dir), crossbar_state(crossbar_state_local)
     {
         count = (crossbar_state->board_state.size() * 2) - 1;
-        for (int i = -1 * (count - 1 / 2); i <= ((int) count - 1); i++)
+        for (int i = -1 * (count - 1 / 2); i <= ((int) (count - 1) / 2); i++)
         {
             //line_mode[i] = line_mode_t.voltage;
             line_busy[i] = (dir == forward_scheduling ? 0 : MAX_CYCLE);
@@ -86,12 +87,12 @@ public:
                 size_t column_b = 0;
                 if (operation_name.compare("shuttle_left") == 0)
                 {
-                    column_a = pos_a.first;
+                    column_a = pos_a.second;
                     column_b = pos_a.second - 1;
                 }
                 else if (operation_name.compare("shuttle_right") == 0)
                 {
-                    column_a = pos_a.first;
+                    column_a = pos_a.second;
                     column_b = pos_a.second + 1;
                 }
                 
@@ -389,7 +390,7 @@ private:
             size_t left_line, size_t right_line)
     {
         return check_line(op_start_cycle, operation_duration, left_line)
-            || check_line(op_start_cycle, operation_duration, right_line);
+            && check_line(op_start_cycle, operation_duration, right_line);
     }
     
     bool check_lines_per_column(size_t op_start_cycle, size_t operation_duration, size_t column_a, size_t column_b)
