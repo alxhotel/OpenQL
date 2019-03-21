@@ -8,9 +8,12 @@
 #ifndef CROSSBAR_WAVE_RESOURCE_H
 #define CROSSBAR_WAVE_RESOURCE_H
 
+#include <map>
 #include <string>
-#include <ql/resource_manager.h>
+#include <ql/arch/crossbar/crossbar_resource.h>
 #include <ql/arch/crossbar/crossbar_state.h>
+
+#include "interval_tree.h"
 
 namespace ql
 {
@@ -18,17 +21,19 @@ namespace arch
 {
 namespace crossbar
 {
-    
-class crossbar_wave_resource_t : public resource_t
+
+class crossbar_wave_resource_t : public crossbar_resource_t
 {
 public:
-    size_t wave_busy;
-    std::string gate;
+    static int WAVE_DURATION_CYCLES;
     
-    crossbar_wave_resource_t(const ql::quantum_platform & platform, ql::scheduling_direction_t dir) : resource_t("wave", dir)
+    Intervals::IntervalTree<size_t, std::string> wave;
+    
+    crossbar_wave_resource_t(const ql::quantum_platform & platform,
+        ql::scheduling_direction_t dir, std::map<size_t, crossbar_state_t*> crossbar_states_local)
+        : crossbar_resource_t("wave", dir)
     {
-        wave_busy = (forward_scheduling == dir ? 0 : MAX_CYCLE);
-        gate = "";
+        //AWVE_DURATION_CYCLES = (int) platform.resources["wave"]["wave_duration"] / (int) platform.hardware_settings["cycle_time"];
     }
     
     crossbar_wave_resource_t* clone() const & { return new crossbar_wave_resource_t(*this);}
@@ -40,10 +45,18 @@ public:
         if (instruction_type.compare("single_qubit_gate") == 0)
         {
             // Single qubit gate
-            if (!check_wave(op_start_cycle, operation_duration))
+            if (operation_name.rfind("_shuttle") == std::string::npos)
             {
-                DOUT("    " << name << " resource busy ...");
-                return false;
+                if (!check_wave(op_start_cycle, WAVE_DURATION_CYCLES, operation_name))
+                {
+                    DOUT("    " << name << " resource busy ...");
+                    return false;
+                }
+                if (!check_wave(op_start_cycle + operation_duration - WAVE_DURATION_CYCLES, WAVE_DURATION_CYCLES, operation_name))
+                {
+                    DOUT("    " << name << " resource busy ...");
+                    return false;
+                }
             }
         }
         
@@ -57,38 +70,47 @@ public:
         if (instruction_type.compare("single_qubit_gate") == 0)
         {
             // Single qubit gate
-            
-            if (!operation_name.compare("z_shuttle_left") == 0
-                || !operation_name.compare("z_shuttle_right") == 0)
+            if (operation_name.rfind("_shuttle") == std::string::npos)
             {
-                wave_busy = (direction == forward_scheduling) ? op_start_cycle + operation_duration : op_start_cycle;   
+                reserve_wave(op_start_cycle, WAVE_DURATION_CYCLES, operation_name);
+                reserve_wave(op_start_cycle + operation_duration - WAVE_DURATION_CYCLES,
+                    WAVE_DURATION_CYCLES, operation_name);
             }
         }
     }
 
 private:
-    bool check_wave(size_t op_start_cycle, size_t operation_duration)
+    bool check_wave(size_t op_start_cycle, size_t operation_duration, std::string operation_name)
     {
         if (direction == forward_scheduling)
         {
-            if (op_start_cycle < wave_busy)
+            const auto &intervals = wave.findOverlappingIntervals(
+                {op_start_cycle, op_start_cycle + operation_duration}
+            );
+            
+            for (const auto &interval : intervals)
             {
-                DOUT("    " << name << " resource busy ...");
-                return false;
+                if (interval.value.compare(operation_name) != 0)
+                {
+                    return false;
+                }
             }
         }
         else
         {
-            if (op_start_cycle + operation_duration > wave_busy)
-            {
-                DOUT("    " << name << " resource busy ...");
-                return false;
-            }
+            // TODO
         }
         
         return true;
     }
+    
+    void reserve_wave(size_t op_start_cycle, size_t operation_duration, std::string operation_name)
+    {
+        wave.insert({op_start_cycle, op_start_cycle + operation_duration, operation_name});
+    }
 };
+
+int crossbar_wave_resource_t::WAVE_DURATION_CYCLES = 0;
 
 }
 }

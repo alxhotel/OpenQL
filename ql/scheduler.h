@@ -1014,18 +1014,28 @@ private:
                 {
                     DOUT("Trying to schedule: " << name[*currNode] << "  in cycle: " << op_start_cycle);
                     DOUT("current operation_duration: " << operation_duration);
-                    if( rm.available(op_start_cycle, curr_ins, operation_name, operation_type, instruction_type, operation_duration) )
-                    {
-                        DOUT("Resources available at cycle " << op_start_cycle << ", Scheduled.");
+                    
+                    try {
+                        if( rm.available(op_start_cycle, curr_ins, operation_name, operation_type, instruction_type, operation_duration) )
+                        {
+                            DOUT("Resources available at cycle " << op_start_cycle << ", Scheduled.");
 
-                        rm.reserve(op_start_cycle, curr_ins, operation_name, operation_type, instruction_type, operation_duration);
-                        cycle[*currNode]=op_start_cycle;
-                        break;
+                            rm.reserve(op_start_cycle, curr_ins, operation_name, operation_type, instruction_type, operation_duration);
+                            cycle[*currNode]=op_start_cycle;
+                            break;
+                        }
+                        else
+                        {
+                            DOUT("Resources not available at cycle " << op_start_cycle << ", trying again ...");
+                            ++op_start_cycle;
+                        }
                     }
-                    else
+                    catch (std::runtime_error e)
                     {
-                        DOUT("Resources not available at cycle " << op_start_cycle << ", trying again ...");
-                        ++op_start_cycle;
+                        // Add instruction to the end of list
+                        
+                        // Go to the next one
+                        
                     }
                 }
 

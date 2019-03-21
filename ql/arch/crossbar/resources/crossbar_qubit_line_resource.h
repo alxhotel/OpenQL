@@ -9,8 +9,10 @@
 #define QL_CROSSBAR_QUBIT_LINE_RESOURCE_H
 
 #include <map>
-#include <ql/resource_manager.h>
+#include <ql/arch/crossbar/crossbar_resource.h>
 #include <ql/arch/crossbar/crossbar_state.h>
+
+#include "crossbar_wave_resource.h"
 
 namespace ql
 {
@@ -24,27 +26,185 @@ typedef enum {
     signal = 1
 } line_mode_t;
 
+typedef enum {
+    equal = 0,
+    less = 1
+} cond_t;
+
+class ql_condition
+{
+public:
+    size_t pos_a_i;
+    size_t pos_a_j;
+    size_t pos_b_i;
+    size_t pos_b_j;
+    line_mode_t line_mode;
+    cond_t less_or_equal;
+    
+    ql_condition(size_t pos_a_i, size_t pos_a_j, size_t pos_b_i, size_t pos_b_j,
+        line_mode_t line_mode, cond_t less_or_equal)
+    {
+        this->pos_a_i = pos_a_i;
+        this->pos_a_j = pos_a_j;
+        this->pos_b_i = pos_b_i;
+        this->pos_b_j = pos_b_j;
+        this->line_mode = line_mode;
+        this->less_or_equal = less_or_equal;
+    }
+    
+    int get_ql_a()
+    {
+        return pos_a_j - pos_a_i;
+    }
+    
+    int get_ql_b()
+    {
+        return pos_b_j - pos_b_i;
+    }
+    
+    bool has_conflict(ql_condition* other_condition)
+    {
+        // They share at least an operand
+        if (this->get_ql_a() == other_condition->get_ql_a()
+            || this->get_ql_a() == other_condition->get_ql_b()
+            || this->get_ql_b() == other_condition->get_ql_a()
+            || this->get_ql_b() == other_condition->get_ql_b())
+        {
+            if (this->line_mode != other_condition->line_mode)
+            {
+                return true;
+            }
+            
+            if (this->line_mode == line_mode_t::voltage)
+            {
+                if (this->less_or_equal == other_condition->less_or_equal)
+                {
+                    // Same condition
+                    
+                    if (this->less_or_equal == cond_t::less)
+                    {
+                        if (this->get_ql_a() == other_condition->get_ql_b()
+                            && this->get_ql_b() == other_condition->get_ql_a())
+                        {
+                            return true;
+                        }
+                    }
+                    else if (this->less_or_equal == cond_t::equal)
+                    {
+                        // They are compatible
+                    }
+                }
+                else
+                {
+                    // Different condition
+                    
+                    if ((this->get_ql_a() == other_condition->get_ql_a()
+                        && this->get_ql_b() == other_condition->get_ql_b())
+                        ||
+                        (this->get_ql_a() == other_condition->get_ql_b()
+                        && this->get_ql_b() == other_condition->get_ql_a()))
+                    {
+                        return true;
+                    }
+                }
+            }
+            else if (this->line_mode == line_mode_t::signal)
+            {
+                if (this->get_ql_a() == other_condition->get_ql_b()
+                    || this->get_ql_b() == other_condition->get_ql_a())
+                {
+                    return true;
+                }
+            }
+        }
+        
+        return false;
+    }
+};
+
+class ql_info
+{
+public:
+    crossbar_state_t* crossbar_state;
+    std::string operation_name;
+    std::vector<size_t> operands;
+    std::vector<ql_condition*> conditions;
+    
+    ql_info(crossbar_state_t* crossbar_state, std::string operation_name, std::vector<size_t> operands)
+    {
+        this->crossbar_state = crossbar_state;
+        this->operation_name = operation_name;
+        this->operands = operands;
+    }
+    
+    bool has_conflict(ql_info* other_ql_info)
+    {
+        for (ql_condition* my_condition : this->conditions)
+        {
+            for (ql_condition* other_condition : other_ql_info->conditions)
+            {
+                if (my_condition->has_conflict(other_condition))
+                {
+                    // Get sites of other_condition
+                    std::vector<size_t> condition_sites;
+                    //int other_ql_a = this->crossbar_state->get_ql_by_site(other_ql_info->operands[0]);
+                    //int other_ql_b = this->crossbar_state->get_ql_by_site(other_ql_info->operands[1]);
+                    
+                    if (abs(other_ql_info->operands[0] - other_ql_info->operands[1]) == 1)
+                    {
+                        // Horizontal
+                        //condition_sites.pusb_back(other_ql_a - other_condition->ql_a );
+                        //condition_sites.push_back();
+                    }
+                    else
+                    {
+                        // Vertical
+                       // condition_sites.pusb_back(other_ql_a - other_condition->ql_a );
+                        //condition_sites.push_back();
+                    }
+                    
+                    bool equal = true;
+                    for (size_t site : this->operands)
+                    {
+                        if (std::find(condition_sites.begin(), condition_sites.end(), site) == condition_sites.end())
+                        {
+                            equal = false;
+                            break;
+                        }
+                    }
+                    
+                    if (equal)
+                    {
+                        // No conflict
+                        // Because this instruction is the owner of the sites
+                        continue;
+                    }
+                    else
+                    {
+                        return true;
+                    }
+                }
+            }
+        }
+        
+        return false;
+    }
+};
+
 /**
  * Qubit line resource type
  */
-class crossbar_qubit_line_resource_t : public resource_t
+class crossbar_qubit_line_resource_t : public crossbar_resource_t
 {
 public:
-    crossbar_state_t * crossbar_state;
-    
-    std::map<size_t, line_mode_t> line_mode;
-    std::map<int, size_t> line_busy;
+    // 0 = RF mode, > 0 = voltage
+    Intervals::IntervalTree<size_t, ql_info*> qubit_line;
     
     crossbar_qubit_line_resource_t(const ql::quantum_platform & platform,
-        ql::scheduling_direction_t dir, crossbar_state_t * crossbar_state_local)
-        : resource_t("qubit_lines", dir), crossbar_state(crossbar_state_local)
+        ql::scheduling_direction_t dir, std::map<size_t, crossbar_state_t*> crossbar_states_local)
+        : crossbar_resource_t("qubit_lines", dir, crossbar_states_local)
     {
-        count = (crossbar_state->board_state.size() * 2) - 1;
-        for (int i = -1 * (count - 1 / 2); i <= ((int) (count - 1) / 2); i++)
-        {
-            //line_mode[i] = line_mode_t.voltage;
-            line_busy[i] = (dir == forward_scheduling ? 0 : MAX_CYCLE);
-        }
+        count = (n * 2) - 1;
     }
     
     crossbar_qubit_line_resource_t* clone() const & { return new crossbar_qubit_line_resource_t(*this);}
@@ -54,28 +214,29 @@ public:
         std::string & operation_type, std::string & instruction_type, size_t operation_duration)
     {
         // Get params
-        size_t n = crossbar_state->board_state.size();
-        std::pair<size_t, size_t> pos_a = crossbar_state->positions[ins->operands[0]];
+        crossbar_state_t* last_crossbar_state = get_last_crossbar_state(op_start_cycle);
+        std::pair<size_t, size_t> pos_a = last_crossbar_state->get_position_by_site(ins->operands[0]);
         
         if (instruction_type.compare("shuttle") == 0)
         {
             // Shuttling
             if (operation_name.compare("shuttle_up") == 0 || operation_name.compare("shuttle_down") == 0)
             {
-                size_t row_a = 0;
-                size_t row_b = 0;
+                size_t new_pos_a_i = 0;
                 if (operation_name.compare("shuttle_up") == 0)
                 {
-                    row_a = pos_a.first;
-                    row_b = pos_a.first + 1;
+                    new_pos_a_i = pos_a.first + 1;
                 }
                 else if (operation_name.compare("shuttle_down") == 0)
                 {
-                    row_a = pos_a.first;
-                    row_b = pos_a.first - 1;
+                    new_pos_a_i = pos_a.first - 1;
                 }
                 
-                if (!check_lines_per_row(op_start_cycle, operation_duration, row_a, row_b))
+                if (!check_line(
+                    operation_name, ins->operands,
+                    op_start_cycle, operation_duration,
+                    pos_a.first, pos_a.second, new_pos_a_i, pos_a.second,
+                    line_mode_t::voltage, cond_t::less))
                 {
                     DOUT("    " << name << " resource busy ...");
                     return false;
@@ -83,20 +244,21 @@ public:
             }
             else if (operation_name.compare("shuttle_left") == 0 || operation_name.compare("shuttle_right") == 0)
             {
-                size_t column_a = 0;
-                size_t column_b = 0;
+                size_t new_pos_a_j = 0;
                 if (operation_name.compare("shuttle_left") == 0)
                 {
-                    column_a = pos_a.second;
-                    column_b = pos_a.second - 1;
+                    new_pos_a_j = pos_a.second - 1;
                 }
                 else if (operation_name.compare("shuttle_right") == 0)
                 {
-                    column_a = pos_a.second;
-                    column_b = pos_a.second + 1;
+                    new_pos_a_j = pos_a.second + 1;
                 }
                 
-                if (!check_lines_per_column(op_start_cycle, operation_duration, column_a, column_b))
+                if (!check_line(
+                    operation_name, ins->operands,
+                    op_start_cycle, operation_duration,
+                    pos_a.first, pos_a.second, pos_a.first, new_pos_a_j,
+                    line_mode_t::voltage, cond_t::less))
                 {
                     DOUT("    " << name << " resource busy ...");
                     return false;
@@ -106,24 +268,37 @@ public:
         else if (instruction_type.compare("one_qubit_gate") == 0)
         {
             // One qubit gate
-            size_t column_a = 0;
-            size_t column_b = 0;
+            size_t new_pos_a_j = 0;
                 
-            // Z gate by shuttling
-            if (operation_name.compare("z_shuttle_left") == 0 || operation_name.compare("z_shuttle_right") == 0)
+            // Z, S & T gate by shuttling
+            if (operation_name.rfind("_shuttle") != std::string::npos)
             {
-                if (operation_name.compare("z_shuttle_left") == 0)
+                if (operation_name.rfind("_shuttle_left") != std::string::npos)
                 {
-                    column_a = pos_a.second;
-                    column_b = pos_a.second - 1;
+                    new_pos_a_j = pos_a.second - 1;
                 }
-                else if (operation_name.compare("z_shuttle_right") == 0)
+                else if (operation_name.rfind("_shuttle_right") != std::string::npos)
                 {
-                    column_a = pos_a.second;
-                    column_b = pos_a.second + 1;
+                    new_pos_a_j = pos_a.second + 1;
                 }
                 
-                if (!check_lines_per_column(op_start_cycle, operation_duration, column_a, column_b))
+                // Shuttle to the next column
+                if (!check_line(
+                    operation_name, ins->operands,
+                    op_start_cycle, operation_duration / 2,
+                    pos_a.first, pos_a.second, pos_a.first, new_pos_a_j,
+                    line_mode_t::voltage, cond_t::less))
+                {
+                    DOUT("    " << name << " resource busy ...");
+                    return false;
+                }
+                
+                // Shuttle back
+                if (!check_line(
+                    operation_name, ins->operands,
+                    op_start_cycle + operation_duration / 2, operation_duration / 2,
+                    pos_a.first, new_pos_a_j, pos_a.first, pos_a.second,
+                    line_mode_t::voltage, cond_t::less))
                 {
                     DOUT("    " << name << " resource busy ...");
                     return false;
@@ -131,16 +306,15 @@ public:
             }
             else
             {
-                // Qubit lines used to ma e a auxiliary shuttle between waves
-                if (pos_a.second - 1 >= 0 && crossbar_state->board_state[pos_a.first][pos_a.second - 1] == 0)
+                // Qubit lines used to make the auxiliary shuttle between waves
+                if (pos_a.second - 1 >= 0 && last_crossbar_state->board_state[pos_a.first][pos_a.second - 1] == 0)
                 {
-                    column_a = pos_a.second;
-                    column_b = pos_a.second - 1;
+                    new_pos_a_j = pos_a.second - 1;
                 }
-                else if (pos_a.second + 1 <= n - 2 && crossbar_state->board_state[pos_a.first][pos_a.second + 1] == 0)
+                else if (pos_a.second + 1 <= n - 2
+                    && last_crossbar_state->board_state[pos_a.first][pos_a.second + 1] == 0)
                 {
-                    column_a = pos_a.second;
-                    column_b = pos_a.second + 1;
+                    new_pos_a_j = pos_a.second + 1;
                 }
                 else
                 {
@@ -149,7 +323,11 @@ public:
                     return false;
                 }
                 
-                if (!check_lines_per_column(op_start_cycle, operation_duration, column_a, column_b))
+                if (!check_line(
+                    operation_name, ins->operands,
+                    op_start_cycle, operation_duration,
+                    pos_a.first, pos_a.second, pos_a.first, new_pos_a_j,
+                    line_mode_t::voltage, cond_t::less))
                 {
                     DOUT("    " << name << " resource busy ...");
                     return false;
@@ -159,12 +337,31 @@ public:
         else if (instruction_type.compare("two_qubit_gate") == 0)
         {
             // Two qubit gate
-            std::pair<int, int> pos_b = crossbar_state->positions[ins->operands[1]];
+            std::pair<size_t, size_t> pos_b = last_crossbar_state->get_position_by_site(ins->operands[1]);
             
-            if (!check_lines_per_row(op_start_cycle, operation_duration, pos_a.first, pos_b.first))
+            if (operation_name.compare("sqswap") == 0)
             {
-                DOUT("    " << name << " resource busy ...");
-                return false;
+                if (!check_line(
+                    operation_name, ins->operands,
+                    op_start_cycle, operation_duration,
+                    pos_a.first, pos_a.second, pos_b.first, pos_b.second,
+                    line_mode_t::voltage, cond_t::equal))
+                {
+                    DOUT("    " << name << " resource busy ...");
+                    return false;
+                }
+            }
+            else if (operation_name.compare("cphase") == 0)
+            {
+                if (!check_line(
+                    operation_name, ins->operands,
+                    op_start_cycle, operation_duration,
+                    pos_a.first, pos_a.second, pos_b.first, pos_b.second,
+                    line_mode_t::voltage, cond_t::equal))
+                {
+                    DOUT("    " << name << " resource busy ...");
+                    return false;
+                }
             }
         }
         else if (instruction_type.compare("measurement") == 0)
@@ -174,22 +371,23 @@ public:
             // ------------------------------
             // 1. Qubit lines for first phase
             // ------------------------------
-            size_t column_a = 0;
-            size_t column_b = 0;
+            size_t new_pos_a_j = 0;
             
             if (instruction_type.compare("measurement_left_up") == 0 || instruction_type.compare("measurement_left_down") == 0)
             {
-                column_a = pos_a.second;
-                column_b = pos_a.second - 1;
+                new_pos_a_j = pos_a.second - 1;
             }
             else if (instruction_type.compare("measurement_right_up") == 0
                 || instruction_type.compare("measurement_right_down") == 0)
             {
-                column_a = pos_a.second;
-                column_b = pos_a.second + 1;
+                new_pos_a_j = pos_a.second + 1;
             }
             
-            if (!check_lines_per_column(op_start_cycle, operation_duration, column_a, column_b))
+            if (!check_line(
+                operation_name, ins->operands,
+                op_start_cycle, operation_duration,
+                pos_a.first, pos_a.second, pos_a.first, new_pos_a_j,
+                line_mode_t::voltage, cond_t::less))
             {
                 DOUT("    " << name << " resource busy ...");
                 return false;
@@ -198,22 +396,24 @@ public:
             // ------------------------------
             // 2. Qubit lines for second phase
             // ------------------------------
-            size_t row_a = 0;
-            size_t row_b = 0;
+            size_t new_pos_a_i = 0;
             
-            if (instruction_type.compare("measurement_left_up") == 0 || instruction_type.compare("measurement_right_up") == 0)
+            if (instruction_type.compare("measurement_left_up") == 0
+                || instruction_type.compare("measurement_right_up") == 0)
             {
-                row_a = pos_a.first;
-                row_b = pos_a.first + 1;
+                new_pos_a_i = pos_a.first + 1;
             }
             else if (instruction_type.compare("measurement_left_down") == 0
                 || instruction_type.compare("measurement_right_down") == 0)
             {
-                row_a = pos_a.first;
-                row_b = pos_a.first - 1;
+                new_pos_a_i = pos_a.first - 1;
             }
             
-            if (!check_lines_per_row(op_start_cycle, operation_duration, row_a, row_b))
+            if (!check_line(
+                operation_name, ins->operands,
+                op_start_cycle, operation_duration,
+                pos_a.first, pos_a.second, new_pos_a_i, pos_a.second,
+                line_mode_t::signal))
             {
                 DOUT("    " << name << " resource busy ...");
                 return false;
@@ -228,96 +428,124 @@ public:
         std::string & operation_type, std::string & instruction_type, size_t operation_duration)
     {
         // Get params
-        size_t n = crossbar_state->board_state.size();
-        std::pair<size_t, size_t> pos_a = crossbar_state->positions[ins->operands[0]];
+        crossbar_state_t* last_crossbar_state = get_last_crossbar_state(op_start_cycle);
+        std::pair<size_t, size_t> pos_a = last_crossbar_state->get_position_by_site(ins->operands[0]);
         
         if (instruction_type.compare("shuttle") == 0)
         {
             // Shuttling
             if (operation_name.compare("shuttle_up") == 0 || operation_name.compare("shuttle_down") == 0)
             {
-                size_t row_a = 0;
-                size_t row_b = 0;
+                size_t new_pos_a_i = 0;
                 if (operation_name.compare("shuttle_up") == 0)
                 {
-                    row_a = pos_a.first;
-                    row_b = pos_a.first + 1;
+                    new_pos_a_i = pos_a.first + 1;
                 }
                 else if (operation_name.compare("shuttle_down") == 0)
                 {
-                    row_a = pos_a.first;
-                    row_b = pos_a.first - 1;
+                    new_pos_a_i = pos_a.first - 1;
                 }
                 
-                reserve_line_per_row(op_start_cycle, operation_duration, row_a, row_b);
+                reserve_line(
+                    operation_name, ins->operands,
+                    op_start_cycle, operation_duration,
+                    pos_a.first, pos_a.second, new_pos_a_i, pos_a.second,
+                    line_mode_t::voltage, cond_t::less);
             }
             else if (operation_name.compare("shuttle_left") == 0 || operation_name.compare("shuttle_right") == 0)
             {
-                size_t column_a = 0;
-                size_t column_b = 0;
+                size_t new_pos_a_j = 0;
                 if (operation_name.compare("shuttle_left") == 0)
                 {
-                    column_a = pos_a.second;
-                    column_b = pos_a.second - 1;
+                    new_pos_a_j = pos_a.second - 1;
                 }
                 else if (operation_name.compare("shuttle_right") == 0)
                 {
-                    column_a = pos_a.second;
-                    column_b = pos_a.second + 1;
+                    new_pos_a_j = pos_a.second + 1;
                 }
                 
-                reserve_line_per_column(op_start_cycle, operation_duration, column_a, column_b);
+                reserve_line(
+                    operation_name, ins->operands,
+                    op_start_cycle, operation_duration,
+                    pos_a.first, pos_a.second, pos_a.first, new_pos_a_j,
+                    line_mode_t::voltage, cond_t::less);
             }
         }
         else if (instruction_type.compare("one_qubit_gate") == 0)
         {
             // One qubit gate
-            size_t column_a = 0;
-            size_t column_b = 0;
+            size_t new_pos_a_j = 0;
             
             // Z gate by shuttling
-            if (operation_name.compare("z_shuttle_left") == 0 || operation_name.compare("z_shuttle_right") == 0)
+            if (operation_name.rfind("_shuttle_left") != std::string::npos)
             {
-                if (operation_name.compare("z_shuttle_left") == 0)
+                if (operation_name.rfind("_shuttle_left") != std::string::npos)
                 {
-                    column_a = pos_a.second;
-                    column_b = pos_a.second - 1;
+                    new_pos_a_j = pos_a.second - 1;
                 }
-                else if (operation_name.compare("z_shuttle_right") == 0)
+                else if (operation_name.rfind("_shuttle_right") != std::string::npos)
                 {
-                    column_a = pos_a.second;
-                    column_b = pos_a.second + 1;
+                    new_pos_a_j = pos_a.second + 1;
                 }
                 
-                reserve_line_per_column(op_start_cycle, operation_duration, column_a, column_b);
+                reserve_line(
+                    operation_name, ins->operands,
+                    op_start_cycle, operation_duration / 2,
+                    pos_a.first, pos_a.second, pos_a.first, new_pos_a_j,
+                    line_mode_t::voltage, cond_t::less);
+                
+                reserve_line(
+                    operation_name, ins->operands,
+                    op_start_cycle + operation_duration / 2, operation_duration / 2,
+                    pos_a.first, new_pos_a_j, pos_a.first, pos_a.second,
+                    line_mode_t::voltage, cond_t::less);
             }
             else
             {
                 // Qubit lines used to ma e a auxiliary shuttle between waves
-                if (pos_a.second - 1 >= 0 && crossbar_state->board_state[pos_a.first][pos_a.second - 1] == 0)
+                if (pos_a.second - 1 >= 0 && last_crossbar_state->board_state[pos_a.first][pos_a.second - 1] == 0)
                 {
-                    column_a = pos_a.second;
-                    column_b = pos_a.second - 1;
+                    new_pos_a_j = pos_a.second - 1;
                 }
-                else if (pos_a.second + 1 <= n - 2 && crossbar_state->board_state[pos_a.first][pos_a.second + 1] == 0)
+                else if (pos_a.second + 1 <= n - 2
+                    && last_crossbar_state->board_state[pos_a.first][pos_a.second + 1] == 0)
                 {
-                    column_a = pos_a.second;
-                    column_b = pos_a.second + 1;
+                    new_pos_a_j = pos_a.second + 1;
                 }
                 else
                 {
                     // This should never happen
                 }
                 
-                reserve_line_per_column(op_start_cycle, operation_duration, column_a, column_b);
+                reserve_line(
+                    operation_name, ins->operands,
+                    op_start_cycle + crossbar_wave_resource_t::WAVE_DURATION_CYCLES,
+                    operation_duration - (crossbar_wave_resource_t::WAVE_DURATION_CYCLES * 2),
+                    pos_a.first, pos_a.second, pos_a.first, new_pos_a_j,
+                    line_mode_t::voltage, cond_t::less);
             }
         }
         else if (instruction_type.compare("two_qubit_gate") == 0)
         {
             // Two qubit gate
-            std::pair<size_t, size_t> pos_b = crossbar_state->positions[ins->operands[1]];
+            std::pair<size_t, size_t> pos_b = last_crossbar_state->get_position_by_site(ins->operands[1]);
             
-            reserve_line_per_row(op_start_cycle, operation_duration, pos_a.first, pos_b.first);
+            if (operation_name.compare("sqswap") == 0)
+            {
+                reserve_line(
+                    operation_name, ins->operands,
+                    op_start_cycle, operation_duration,
+                    pos_a.first, pos_a.second, pos_b.first, pos_b.second,
+                    line_mode_t::voltage, cond_t::equal);
+            }
+            else if (operation_name.compare("cphase") == 0)
+            {
+                reserve_line(
+                    operation_name, ins->operands,
+                    op_start_cycle, operation_duration,
+                    pos_a.first, pos_a.second, pos_b.first, pos_b.second,
+                    line_mode_t::voltage, cond_t::equal);
+            }
         }
         else if (instruction_type.compare("measurement") == 0)
         {
@@ -326,132 +554,242 @@ public:
             // ------------------------------
             // 1. Qubit lines for first phase
             // ------------------------------
-            size_t column_a = 0;
-            size_t column_b = 0;
+            size_t new_pos_a_j = 0;
             
-            if (instruction_type.compare("measurement_left_up") == 0 || instruction_type.compare("measurement_left_down") == 0)
+            if (instruction_type.compare("measurement_left_up") == 0
+                || instruction_type.compare("measurement_left_down") == 0)
             {
-                column_a = pos_a.second;
-                column_b = pos_a.second - 1;
+                new_pos_a_j = pos_a.second - 1;
             }
             else if (instruction_type.compare("measurement_right_up") == 0
                 || instruction_type.compare("measurement_right_down") == 0)
             {
-                column_a = pos_a.second;
-                column_b = pos_a.second + 1;
+                new_pos_a_j = pos_a.second + 1;
             }
             
-            reserve_line_per_column(op_start_cycle, operation_duration, column_a, column_b);
+            reserve_line(
+                operation_name, ins->operands,
+                op_start_cycle, operation_duration / 2,
+                pos_a.first, pos_a.second, pos_a.first, new_pos_a_j,
+                line_mode_t::voltage, cond_t::less);
             
             // ------------------------------
             // 2. Qubit lines for second phase
             // ------------------------------
-            size_t row_a = 0;
-            size_t row_b = 0;
+            size_t new_pos_a_i = 0;
             
-            if (instruction_type.compare("measurement_left_up") == 0 || instruction_type.compare("measurement_right_up") == 0)
+            if (instruction_type.compare("measurement_left_up") == 0
+                || instruction_type.compare("measurement_right_up") == 0)
             {
-                row_a = pos_a.first;
-                row_b = pos_a.first + 1;
+                new_pos_a_i = pos_a.first + 1;
             }
             else if (instruction_type.compare("measurement_left_down") == 0
                 || instruction_type.compare("measurement_right_down") == 0)
             {
-                row_a = pos_a.first;
-                row_b = pos_a.first - 1;
+                new_pos_a_i = pos_a.first - 1;
             }
             
-            reserve_line_per_row(op_start_cycle, operation_duration, row_a, row_b);
+            reserve_line(
+                operation_name, ins->operands,
+                op_start_cycle + operation_duration / 2, operation_duration / 2,
+                pos_a.first, pos_a.second, new_pos_a_i, pos_a.second,
+                line_mode_t::signal);
         }
     }
     
-private:    
-    bool check_line(size_t op_start_cycle, size_t operation_duration, size_t index)
+private:
+    bool check_line(
+            std::string operation_name, std::vector<size_t> operands,
+            size_t op_start_cycle, size_t operation_duration,
+            size_t pos_a_i, size_t pos_a_j, size_t pos_b_i, size_t pos_b_j,
+            line_mode_t line_mode, cond_t less_or_equal = cond_t::less)
     {
+        crossbar_state_t* last_crossbar_state = get_last_crossbar_state(op_start_cycle);
+        
         if (direction == forward_scheduling)
         {
-            if (op_start_cycle < line_busy[index])
+            ql_info* my_ql_info = new ql_info(last_crossbar_state, operation_name, operands);
+   
+            // Add prior checks
+            for (size_t k = 0; k < n; k++)
             {
-                return false;
+                if (pos_a_i == pos_b_i)
+                {
+                    if (k == pos_a_i) continue;
+
+                    // TODO: Check QL for isolated qubits in same row/column
+                    if (last_crossbar_state->get_count_by_position(k, pos_a_j) == 0
+                        && last_crossbar_state->get_count_by_position(k, pos_b_j) != 0)
+                    {
+                        // Qubit in a_j
+                        ql_condition* my_condition = new ql_condition(
+                            pos_a_j - k, pos_b_j - k, line_mode_t::voltage, cond_t::less
+                        );
+                        my_ql_info->conditions.push_back(my_condition);
+                    }
+                    else if (last_crossbar_state->get_count_by_position(k, pos_a_j) != 0
+                        && last_crossbar_state->get_count_by_position(k, pos_b_j) == 0)
+                    {
+                        // Qubit in b_j
+                        ql_condition* my_condition = new ql_condition(
+                            pos_b_j - k, pos_a_j - k, line_mode_t::voltage, cond_t::less
+                        );
+                        my_ql_info->conditions.push_back(my_condition);
+                    }
+                    else if (last_crossbar_state->get_count_by_position(k, pos_a_j) != 0
+                        && last_crossbar_state->get_count_by_position(k, pos_b_j) != 0)
+                    {
+                        // TODO: Check for adjacent qubits (cphase)
+                        return false;
+                    }
+                }
+                else
+                {
+                    if (k == pos_a_j) continue;
+
+                    // TODO: Check QL for isolated qubits in same row/column
+                    if (last_crossbar_state->get_count_by_position(pos_a_i, k) == 0
+                        && last_crossbar_state->get_count_by_position(pos_b_i, k) != 0)
+                    {
+                        // Qubit in a_j
+                        ql_condition* my_condition = new ql_condition(
+                            k - pos_a_i, k - pos_b_i, line_mode_t::voltage, cond_t::less
+                        );
+                        my_ql_info->conditions.push_back(my_condition);
+                    }
+                    else if (last_crossbar_state->get_count_by_position(pos_a_i, k) != 0
+                        && last_crossbar_state->get_count_by_position(pos_b_i, k) == 0)
+                    {
+                        // Qubit in b_j
+                        ql_condition* my_condition = new ql_condition(
+                            k - pos_b_i, k - pos_a_i, line_mode_t::voltage, cond_t::less
+                        );
+                        my_ql_info->conditions.push_back(my_condition);
+                    }
+                    else if (last_crossbar_state->get_count_by_position(pos_a_i, k) != 0
+                        && last_crossbar_state->get_count_by_position(pos_b_i, k) != 0)
+                    {
+                        // TODO: Check for adjacent qubits (sqswap)
+                        return false;
+                    }
+                }
+            }
+
+            // Get current QL lines
+            int ql_a = pos_a_j - pos_a_i;
+            int ql_b = pos_b_j - pos_b_i;
+            
+            // Add my current QL
+            ql_condition* my_condition = new ql_condition(
+                ql_a, ql_b, line_mode, less_or_equal
+            );
+            my_ql_info->conditions.push_back(my_condition);
+            
+            const auto &intervals = qubit_line.findOverlappingIntervals(
+                {op_start_cycle, op_start_cycle + operation_duration}
+            );
+            
+            // Check conditions        
+            for (const auto &interval : intervals)
+            {
+                ql_info* other_ql_info = interval.value;
+                
+                if (my_ql_info->has_conflict(other_ql_info))
+                {
+                    return false;
+                }
             }
         }
         else
         {
-            if (op_start_cycle + operation_duration > line_busy[index])
-            {
-                return false;
-            }
+            // TODO
         }
         
         return true;
     }
     
-    bool check_lines(size_t op_start_cycle, size_t operation_duration,
-            size_t left_line, size_t right_line)
+    void reserve_line(
+        std::string operation_name, std::vector<size_t> operands,
+        size_t op_start_cycle, size_t operation_duration,
+        size_t pos_a_i, size_t pos_a_j, size_t pos_b_i, size_t pos_b_j,
+        line_mode_t line_mode, cond_t less_or_equal = cond_t::less)
     {
-        return check_line(op_start_cycle, operation_duration, left_line)
-            && check_line(op_start_cycle, operation_duration, right_line);
-    }
-    
-    bool check_lines_per_column(size_t op_start_cycle, size_t operation_duration, size_t column_a, size_t column_b)
-    {
-        for (size_t i = 0; i < crossbar_state->board_state.size(); i++)
+        crossbar_state_t* last_crossbar_state = get_last_crossbar_state(op_start_cycle);
+        
+        ql_info* my_ql_info = new ql_info(last_crossbar_state, operation_name, operands);
+        
+        // Add prior checks
+        for (size_t k = 0; k < n; k++)
         {
-            // Calculate qubit line
-            int qubit_line_left = column_a - i;
-            int qubit_line_right = column_b - i;
-            if (!check_lines(op_start_cycle, operation_duration, qubit_line_left, qubit_line_right))
+            if (pos_a_i == pos_b_i)
             {
-                return false;                
+                if (k == pos_a_i) continue;
+
+                // TODO: Check QL for isolated qubits in same row/column
+                if (last_crossbar_state->get_count_by_position(k, pos_a_j) == 0
+                    && last_crossbar_state->get_count_by_position(k, pos_b_j) != 0)
+                {
+                    // Qubit in a_j
+                    ql_condition* my_condition = new ql_condition(
+                        k, pos_a_j, k, pos_b_j, line_mode_t::voltage, cond_t::less
+                    );
+                    my_ql_info->conditions.push_back(my_condition);
+                }
+                else if (last_crossbar_state->get_count_by_position(k, pos_a_j) != 0
+                    && last_crossbar_state->get_count_by_position(k, pos_b_j) == 0)
+                {
+                    // Qubit in b_j
+                    ql_condition* my_condition = new ql_condition(
+                        k, pos_b_j, k, pos_a_j, line_mode_t::voltage, cond_t::less
+                    );
+                    my_ql_info->conditions.push_back(my_condition);
+                }
+                else if (last_crossbar_state->get_count_by_position(k, pos_a_j) != 0
+                    && last_crossbar_state->get_count_by_position(k, pos_b_j) != 0)
+                {
+                    // TODO: Check for adjacent qubits (cphase)
+                    
+                }
+            }
+            else
+            {
+                if (k == pos_a_j) continue;
+
+                // TODO: Check QL for isolated qubits in same row/column
+                if (last_crossbar_state->get_count_by_position(pos_a_i, k) == 0
+                    && last_crossbar_state->get_count_by_position(pos_b_i, k) != 0)
+                {
+                    // Qubit in a_j
+                    ql_condition* my_condition = new ql_condition(
+                        pos_a_i, k, pos_b_i, k, line_mode_t::voltage, cond_t::less
+                    );
+                    my_ql_info->conditions.push_back(my_condition);
+                }
+                else if (last_crossbar_state->get_count_by_position(pos_a_i, k) != 0
+                    && last_crossbar_state->get_count_by_position(pos_b_i, k) == 0)
+                {
+                    // Qubit in b_j
+                    ql_condition* my_condition = new ql_condition(
+                        pos_b_i, k, pos_a_i, k, line_mode_t::voltage, cond_t::less
+                    );
+                    my_ql_info->conditions.push_back(my_condition);
+                }
+                else if (last_crossbar_state->get_count_by_position(pos_a_i, k) != 0
+                    && last_crossbar_state->get_count_by_position(pos_b_i, k) != 0)
+                {
+                    // TODO: Check for adjacent qubits (sqswap)
+                    
+                }
             }
         }
         
-        return true;
-    }
-    
-    bool check_lines_per_row(size_t op_start_cycle, size_t operation_duration, size_t row_a, size_t row_b)
-    {
-        for (size_t j = 0; j < crossbar_state->board_state.size(); j++)
-        {
-            // Calculate qubit line
-            int qubit_line_left = j - row_a;
-            int qubit_line_right = j - row_b;
-            if (!check_lines(op_start_cycle, operation_duration, qubit_line_left, qubit_line_right))
-            {
-                return false;                
-            }
-        }
+        // Add my current QL
+        ql_condition* my_condition = new ql_condition(
+            pos_a_i, pos_a_j, pos_b_i, pos_b_j, line_mode, less_or_equal
+        );
+        my_ql_info->conditions.push_back(my_condition);
         
-        return true;
-    }
-    
-    void reserve_line(size_t op_start_cycle, size_t operation_duration, size_t index)
-    {
-        line_busy[index] = (direction == forward_scheduling) ? op_start_cycle + operation_duration : op_start_cycle;
-    }
-    
-    void reserve_line_per_column(size_t op_start_cycle, size_t operation_duration, size_t column_a, size_t column_b)
-    {
-        for (size_t i = 0; i < crossbar_state->board_state.size(); i++)
-        {
-            // Calculate qubit line
-            int qubit_line_left = column_a - i;
-            int qubit_line_right = column_b - i;
-            reserve_line(op_start_cycle, operation_duration, qubit_line_left);
-            reserve_line(op_start_cycle, operation_duration, qubit_line_right);
-        }
-    }
-    
-    void reserve_line_per_row(size_t op_start_cycle, size_t operation_duration, size_t row_a, size_t row_b)
-    {
-        for (size_t j = 0; j < crossbar_state->board_state.size(); j++)
-        {
-            // Calculate qubit line
-            int qubit_line_left = j - row_a;
-            int qubit_line_right = j - row_b;
-            reserve_line(op_start_cycle, operation_duration, qubit_line_left);
-            reserve_line(op_start_cycle, operation_duration, qubit_line_right);
-        }
+        qubit_line.insert({op_start_cycle, op_start_cycle + operation_duration, my_ql_info});
     }
 };
 

@@ -8,7 +8,7 @@ This archiecture has the following structure:
 
 ### Topology
 
-- Grid matrix
+- Grid matrix M x N (i x j)
 
 ### Resources
 
@@ -17,7 +17,7 @@ This archiecture has the following structure:
 - Qubit Lines
 - Wave
 
-### Decomposition
+### Gate decomposition
 
 ### Supported Gates
 
@@ -27,7 +27,7 @@ This archiecture has the following structure:
 - shuttle_left
 - shuttle_right
 
-#### Single Qubit Gates
+#### Single Qubit Gates (semi-global rotation)
 - prep_x
 - prep_y
 - prep_z
@@ -40,9 +40,19 @@ This archiecture has the following structure:
 - t_dag
 
 #### Z Gate
-- z (normal global execution)
-- z_shuttle_left (shuttling execution)
-- z_shuttle_right (shuttling execution)
+- z (semi-global rotation)
+- z_shuttle_left (shuttling rotation)
+- z_shuttle_right (shuttling rotation)
+
+#### S Gate
+- s (semi-global rotation)
+- s_shuttle_left (shuttling rotation)
+- s_shuttle_right (shuttling rotation)
+
+#### T Gate
+- t (semi-global rotation)
+- t_shuttle_left (shuttling rotation)
+- t_shuttle_right (shuttling rotation)
 
 #### Two Qubit Gates
 - sqswap

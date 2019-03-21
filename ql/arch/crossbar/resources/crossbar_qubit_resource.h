@@ -8,8 +8,9 @@
 #ifndef QL_CROSSBAR_QUBIT_RESOURCE_H
 #define QL_CROSSBAR_QUBIT_RESOURCE_H
 
+#include <map>
 #include <vector>
-#include <ql/resource_manager.h>
+#include <ql/arch/crossbar/crossbar_resource.h>
 #include <ql/arch/crossbar/crossbar_state.h>
 
 namespace ql
@@ -22,7 +23,7 @@ namespace crossbar
 /**
  * Qubit resource type
  */
-class crossbar_qubit_resource_t : public resource_t
+class crossbar_qubit_resource_t : public crossbar_resource_t
 {
 public:
     /**
@@ -32,7 +33,8 @@ public:
     std::vector<size_t> state;
     
     crossbar_qubit_resource_t(const ql::quantum_platform & platform,
-        ql::scheduling_direction_t dir) : resource_t("qubits", dir)
+        ql::scheduling_direction_t dir, std::map<size_t, crossbar_state_t*> crossbar_states_local)
+        : crossbar_resource_t("qubits", dir)
     {
         count = platform.qubit_number;
         state.reserve(count);
@@ -50,7 +52,6 @@ public:
     {
         for (auto index : ins->operands)
         {
-            DOUT(" available " << name << "? op_start_cycle: " << op_start_cycle << "  qubit: " << index << " is busy till cycle : " << state[index]);
             if (!check_qubit(op_start_cycle, operation_duration, index))
             {
                 DOUT("    " << name << " resource busy ...");

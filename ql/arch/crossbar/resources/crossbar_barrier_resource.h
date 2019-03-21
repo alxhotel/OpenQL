@@ -9,8 +9,11 @@
 #define QL_CROSSBAR_BARRIER_RESOURCE_H
 
 #include <vector>
-#include <ql/resource_manager.h>
+#include <ql/arch/crossbar/crossbar_resource.h>
 #include <ql/arch/crossbar/crossbar_state.h>
+#include <ql/arch/crossbar/resources/interval_tree.h>
+
+#include "crossbar_wave_resource.h"
 
 namespace ql
 {
@@ -21,37 +24,25 @@ namespace crossbar
 
 typedef enum {
     lowered = 0,
-    raised = 1,
-    neutral = 2
+    raised = 1
 } barrier_state_t;
 
 /**
  * Horizontal & Vertical barriers resource type
  */
-class crossbar_barrier_resource_t : public resource_t
+class crossbar_barrier_resource_t : public crossbar_resource_t
 {
 public:
-    crossbar_state_t * crossbar_state;
-    
-    // Vertical barrier
-    std::vector<size_t> vertical_barrier_busy;
-
-    // Horizontal barrier
-    std::vector<size_t> horizontal_barrier_busy;
+    std::vector<Intervals::IntervalTree<size_t, barrier_state_t>> vertical_barrier;
+    std::vector<Intervals::IntervalTree<size_t, barrier_state_t>> horizontal_barrier;
     
     crossbar_barrier_resource_t(const ql::quantum_platform & platform,
-        ql::scheduling_direction_t dir, crossbar_state_t * crossbar_state_local)
-    : resource_t("barrier", dir), crossbar_state(crossbar_state_local)
+        ql::scheduling_direction_t dir, std::map<size_t, crossbar_state_t*> crossbar_states_local)
+        : crossbar_resource_t("barrier", dir, crossbar_states_local)
     {
-        count = (crossbar_state->board_state.size() - 1);
-        vertical_barrier_busy.reserve(count);
-        horizontal_barrier_busy.reserve(count);
-        
-        for (size_t i = 0; i < count; i++)
-        {
-            vertical_barrier_busy[i] = (dir == forward_scheduling ? 0 : MAX_CYCLE);
-            horizontal_barrier_busy[i] = (dir == forward_scheduling ? 0 : MAX_CYCLE);
-        }
+        count = (n - 1);
+        vertical_barrier.resize(count);
+        horizontal_barrier.resize(count);
     }
 
     crossbar_barrier_resource_t* clone() const & { return new crossbar_barrier_resource_t(*this);}
@@ -60,27 +51,14 @@ public:
     bool available(size_t op_start_cycle, ql::gate * ins, std::string & operation_name,
         std::string & operation_type, std::string & instruction_type, size_t operation_duration)
     {
-        std::pair<int, int> pos_a = crossbar_state->positions[ins->operands[0]];
+        crossbar_state_t* last_crossbar_state = get_last_crossbar_state(op_start_cycle);
+        std::pair<size_t, size_t> pos_a = last_crossbar_state->get_position_by_site(ins->operands[0]);
         
         if (instruction_type.compare("shuttle") == 0)
         {
             // Shuttling
             if (operation_name.compare("shuttle_up") == 0 || operation_name.compare("shuttle_down") == 0)
-            {                
-                // Barrier at the left
-                if (!check_vertical_barrier(op_start_cycle, operation_duration, pos_a.second - 1))
-                {
-                    DOUT("    " << name << " resource busy ...");
-                    return false;
-                }
-                
-                // Barrier at the right
-                if (!check_vertical_barrier(op_start_cycle, operation_duration, pos_a.second))
-                {
-                    DOUT("    " << name << " resource busy ...");
-                    return false;
-                }
-                
+            {
                 int middle_barrier = 0;
                 if (operation_name.compare("shuttle_up") == 0)
                 {
@@ -92,21 +70,16 @@ public:
                 }
                 
                 // Barrier between qubit and destination
-                if (!check_horizontal_barrier(op_start_cycle, operation_duration, middle_barrier))
+                if (!check_horizontal_barrier(op_start_cycle, operation_duration,
+                    middle_barrier, barrier_state_t::lowered))
                 {
                     DOUT("    " << name << " resource busy ...");
                     return false;
                 }
                 
-                // Barrier at the top
-                if (!check_horizontal_barrier(op_start_cycle, operation_duration, middle_barrier + 1))
-                {
-                    DOUT("    " << name << " resource busy ...");
-                    return false;
-                }
-                
-                // Barrier at the bottom
-                if (!check_horizontal_barrier(op_start_cycle, operation_duration, middle_barrier - 1))
+                // Border barriers
+                if (!check_border_barriers_upwards(op_start_cycle, operation_duration,
+                    middle_barrier, pos_a.second, barrier_state_t::raised))
                 {
                     DOUT("    " << name << " resource busy ...");
                     return false;
@@ -114,20 +87,6 @@ public:
             }
             else if (operation_name.compare("shuttle_left") == 0 || operation_name.compare("shuttle_right") == 0)
             {                
-                // Barrier at the top
-                if (!check_horizontal_barrier(op_start_cycle, operation_duration, pos_a.first))
-                {
-                    DOUT("    " << name << " resource busy ...");
-                    return false;
-                }
-                
-                // Barrier at the bottom
-                if (!check_horizontal_barrier(op_start_cycle, operation_duration, pos_a.first - 1))
-                {
-                    DOUT("    " << name << " resource busy ...");
-                    return false;
-                }
-                
                 int middle_barrier = 0;
                 if (operation_name.compare("shuttle_left") == 0)
                 {
@@ -139,21 +98,16 @@ public:
                 }
                 
                 // Barrier between qubit and destination
-                if (!check_vertical_barrier(op_start_cycle, operation_duration, middle_barrier))
+                if (!check_vertical_barrier(op_start_cycle, operation_duration,
+                    middle_barrier, barrier_state_t::lowered))
                 {
                     DOUT("    " << name << " resource busy ...");
                     return false;
                 }
                 
-                // Barrier at the left
-                if (!check_vertical_barrier(op_start_cycle, operation_duration, middle_barrier - 1))
-                {
-                    DOUT("    " << name << " resource busy ...");
-                    return false;
-                }
-                
-                // Barrier at the right
-                if (!check_vertical_barrier(op_start_cycle, operation_duration, middle_barrier + 1))
+                // Border barriers
+                if (!check_border_barriers_rightwards(op_start_cycle, operation_duration,
+                    pos_a.first, middle_barrier, barrier_state_t::raised))
                 {
                     DOUT("    " << name << " resource busy ...");
                     return false;
@@ -162,48 +116,29 @@ public:
         }
         else if (instruction_type.compare("single_qubit_gate") == 0)
         {
-            if (operation_name.compare("z_shuttle_left") == 0 || operation_name.compare("z_shuttle_right") == 0)
+            if (operation_name.rfind("_shuttle") != std::string::npos)
             {
-                // Barrier at the top
-                if (!check_horizontal_barrier(op_start_cycle, operation_duration, pos_a.first))
-                {
-                    DOUT("    " << name << " resource busy ...");
-                    return false;
-                }
-                
-                // Barrier at the bottom
-                if (!check_horizontal_barrier(op_start_cycle, operation_duration, pos_a.first - 1))
-                {
-                    DOUT("    " << name << " resource busy ...");
-                    return false;
-                }
-                
                 int middle_barrier = 0;
-                if (operation_name.compare("z_shuttle_left") == 0)
+                if (operation_name.rfind("_shuttle_left") != std::string::npos)
                 {
                     middle_barrier = pos_a.second - 1;
                 }
-                else if (operation_name.compare("z_shuttle_right") == 0)
+                else if (operation_name.rfind("_shuttle_right") != std::string::npos)
                 {
                     middle_barrier = pos_a.second;
                 }
                 
                 // Barrier between qubit and destination
-                if (!check_vertical_barrier(op_start_cycle, operation_duration, middle_barrier))
+                if (!check_vertical_barrier(op_start_cycle, operation_duration,
+                    middle_barrier, barrier_state_t::lowered))
                 {
                     DOUT("    " << name << " resource busy ...");
                     return false;
                 }
                 
-                // Barrier at the left
-                if (!check_vertical_barrier(op_start_cycle, operation_duration, middle_barrier - 1))
-                {
-                    DOUT("    " << name << " resource busy ...");
-                    return false;
-                }
-                
-                // Barrier at the right
-                if (!check_vertical_barrier(op_start_cycle, operation_duration, middle_barrier + 1))
+                // Border barriers
+                if (!check_border_barriers_rightwards(op_start_cycle, operation_duration,
+                    pos_a.first, middle_barrier, barrier_state_t::raised))
                 {
                     DOUT("    " << name << " resource busy ...");
                     return false;
@@ -212,61 +147,137 @@ public:
             else
             {
                 // Single gate
+                
+                // Wave
                 for (size_t i = 0; i < count; i++)
                 {
-                    if (!check_vertical_barrier(op_start_cycle, operation_duration, i))
+                    // First wave
+                    if (!check_vertical_barrier(
+                        op_start_cycle,
+                        crossbar_wave_resource_t::WAVE_DURATION_CYCLES, i, barrier_state_t::raised))
                     {
                         DOUT("    " << name << " resource busy ...");
                         return false;
                     }
-                    if (!check_horizontal_barrier(op_start_cycle, operation_duration, i))
+                    if (!check_horizontal_barrier(
+                        op_start_cycle,
+                        crossbar_wave_resource_t::WAVE_DURATION_CYCLES, i, barrier_state_t::raised))
                     {
                         DOUT("    " << name << " resource busy ...");
                         return false;
                     }
+                    
+                    // Second wave
+                    if (!check_vertical_barrier(
+                        op_start_cycle + operation_duration - crossbar_wave_resource_t::WAVE_DURATION_CYCLES,
+                        crossbar_wave_resource_t::WAVE_DURATION_CYCLES, i, barrier_state_t::raised))
+                    {
+                        DOUT("    " << name << " resource busy ...");
+                        return false;
+                    }
+                    if (!check_horizontal_barrier(
+                        op_start_cycle + operation_duration - crossbar_wave_resource_t::WAVE_DURATION_CYCLES,
+                        crossbar_wave_resource_t::WAVE_DURATION_CYCLES, i, barrier_state_t::raised))
+                    {
+                        DOUT("    " << name << " resource busy ...");
+                        return false;
+                    }
+                }
+                
+                // Shuttle
+                int middle_barrier = 0;
+                if (operation_name.rfind("_left") != std::string::npos)
+                {
+                    // Left
+                    middle_barrier = pos_a.second - 1;
+                }
+                else if (operation_name.rfind("_right") != std::string::npos)
+                {
+                    // Right
+                    middle_barrier = pos_a.second;
+                }
+                else
+                {
+                    // Left then right
+                    if (pos_a.second > 0 && last_crossbar_state->get_count_by_site(ins->operands[0] - 1) == 0)
+                    {
+                        middle_barrier = pos_a.second - 1;
+                    }
+                    else if (pos_a.second < n - 1 && last_crossbar_state->get_count_by_site(ins->operands[0] + 1) == 0)
+                    {
+                        middle_barrier = pos_a.second;
+                    }
+                    else
+                    {
+                        std::cout << last_crossbar_state->get_count_by_site(ins->operands[0] + 1) << std::endl << std::flush;
+                        DOUT("THIS SHOULD NEVER HAPPEN: ");
+                        return false;
+                    }
+                }
+                
+                // Barrier between qubit and destination
+                if (!check_vertical_barrier(
+                    op_start_cycle + crossbar_wave_resource_t::WAVE_DURATION_CYCLES,
+                    operation_duration - crossbar_wave_resource_t::WAVE_DURATION_CYCLES * 2,
+                    middle_barrier, barrier_state_t::lowered))
+                {
+                    DOUT("    " << name << " resource busy ...");
+                    return false;
+                }
+                
+                // Border barriers
+                if (!check_border_barriers_rightwards(
+                    op_start_cycle + crossbar_wave_resource_t::WAVE_DURATION_CYCLES,
+                    operation_duration - crossbar_wave_resource_t::WAVE_DURATION_CYCLES * 2,
+                    pos_a.first, middle_barrier, barrier_state_t::raised))
+                {
+                    DOUT("    " << name << " resource busy ...");
+                    return false;
                 }
             }
         }
         else if (instruction_type.compare("two_qubit_gate") == 0)
         {
             // SQSWAP
-            std::pair<int, int> pos_b = crossbar_state->positions[ins->operands[1]];
-            int column = pos_a.second;
-            int middle_barrier = std::min(pos_a.first, pos_b.first);
+            std::pair<size_t, size_t> pos_b = last_crossbar_state->get_position_by_site(ins->operands[1]);
             
-            // Barrier between qubits
-            if (!check_horizontal_barrier(op_start_cycle, operation_duration, middle_barrier))
+            if (operation_name.compare("sqswap") == 0)
             {
-                DOUT("    " << name << " resource busy ...");
-                return false;
+                int middle_barrier = std::min(pos_a.first, pos_b.first);
+                
+                // Barrier between qubits
+                if (!check_horizontal_barrier(op_start_cycle, operation_duration,
+                    middle_barrier, barrier_state_t::lowered))
+                {
+                    DOUT("    " << name << " resource busy ...");
+                    return false;
+                }
+
+                if (!check_border_barriers_upwards(op_start_cycle, operation_duration,
+                    middle_barrier, pos_a.second, barrier_state_t::raised))
+                {
+                    DOUT("    " << name << " resource busy ...");
+                    return false;
+                }
             }
-            
-            // Barrier at the left
-            if (!check_vertical_barrier(op_start_cycle, operation_duration, column - 1))
+            else if (operation_name.compare("cphase") == 0)
             {
-                DOUT("    " << name << " resource busy ...");
-                return false;
-            }
-            
-            // Barrier at the right
-            if (!check_vertical_barrier(op_start_cycle, operation_duration, column))
-            {
-                DOUT("    " << name << " resource busy ...");
-                return false;
-            }
-            
-            // Barrier at the top
-            if (!check_horizontal_barrier(op_start_cycle, operation_duration, middle_barrier + 1))
-            {
-                DOUT("    " << name << " resource busy ...");
-                return false;
-            }
-            
-            // Barrier at the bottom
-            if (!check_horizontal_barrier(op_start_cycle, operation_duration, middle_barrier - 1))
-            {
-                DOUT("    " << name << " resource busy ...");
-                return false;
+                int middle_barrier = std::min(pos_a.second, pos_b.second);
+                
+                // Barrier between qubits
+                if (!check_vertical_barrier(op_start_cycle, operation_duration,
+                    middle_barrier, barrier_state_t::lowered))
+                {
+                    DOUT("    " << name << " resource busy ...");
+                    return false;
+                }
+
+                if (!check_border_barriers_rightwards(op_start_cycle, operation_duration,
+                    pos_a.first, middle_barrier, barrier_state_t::raised))
+                {
+                    DOUT("    " << name << " resource busy ...");
+                    return false;
+                }
             }
         }
         else if (instruction_type.compare("measurement_gate") == 0)
@@ -276,20 +287,6 @@ public:
             // --------------------------------
             // 1. Barriers for the first phase
             // --------------------------------
-            
-            // Barrier at the top
-            if (!check_horizontal_barrier(op_start_cycle, operation_duration, pos_a.first))
-            {
-                DOUT("    " << name << " resource busy ...");
-                return false;
-            }
-
-            // Barrier at the bottom
-            if (!check_horizontal_barrier(op_start_cycle, operation_duration, pos_a.first - 1))
-            {
-                DOUT("    " << name << " resource busy ...");
-                return false;
-            }
             
             int middle_barrier = 0;
             if (operation_name.compare("measure_left_up") == 0 || operation_name.compare("measure_left_down") == 0)
@@ -301,22 +298,16 @@ public:
                 middle_barrier = pos_a.second;
             }
             
-            // Barrier between data and ancilla
-            if (!check_vertical_barrier(op_start_cycle, operation_duration, middle_barrier))
+            // Barrier between qubits
+            if (!check_vertical_barrier(op_start_cycle, operation_duration,
+                middle_barrier, barrier_state_t::lowered))
             {
                 DOUT("    " << name << " resource busy ...");
                 return false;
             }
-
-            // Barrier at the left
-            if (!check_vertical_barrier(op_start_cycle, operation_duration, middle_barrier - 1))
-            {
-                DOUT("    " << name << " resource busy ...");
-                return false;
-            }
-
-            // Barrier at the right
-            if (!check_vertical_barrier(op_start_cycle, operation_duration, middle_barrier + 1))
+            
+            if (!check_border_barriers_rightwards(op_start_cycle, operation_duration,
+                pos_a.first, middle_barrier, barrier_state_t::raised))
             {
                 DOUT("    " << name << " resource busy ...");
                 return false;
@@ -326,20 +317,6 @@ public:
             // 2. Barriers for the second phase
             // ---------------------------------
             
-            // Barrier at the left
-            if (!check_vertical_barrier(op_start_cycle, operation_duration, pos_a.second - 1))
-            {
-                DOUT("    " << name << " resource busy ...");
-                return false;
-            }
-
-            // Barrier at the right
-            if (!check_vertical_barrier(op_start_cycle, operation_duration, pos_a.second))
-            {
-                DOUT("    " << name << " resource busy ...");
-                return false;
-            }
-            
             if (operation_name.compare("measure_left_up") == 0 || operation_name.compare("measure_right_up") == 0)
             {
                 middle_barrier = pos_a.first;
@@ -348,23 +325,17 @@ public:
             {
                 middle_barrier = pos_a.first - 1;
             }
+
+            // Barrier between qubits
+            if (!check_horizontal_barrier(op_start_cycle, operation_duration,
+                middle_barrier, barrier_state_t::lowered))
+            {
+                DOUT("    " << name << " resource busy ...");
+                return false;
+            }
             
-            // Barrier between sites
-            if (!check_horizontal_barrier(op_start_cycle, operation_duration, middle_barrier))
-            {
-                DOUT("    " << name << " resource busy ...");
-                return false;
-            }
-
-            // Barrier at the top
-            if (!check_horizontal_barrier(op_start_cycle, operation_duration, middle_barrier + 1))
-            {
-                DOUT("    " << name << " resource busy ...");
-                return false;
-            }
-
-            // Barrier at the bottom
-            if (!check_horizontal_barrier(op_start_cycle, operation_duration, middle_barrier - 1))
+            if (!check_border_barriers_upwards(op_start_cycle, operation_duration,
+                middle_barrier, pos_a.second, barrier_state_t::raised))
             {
                 DOUT("    " << name << " resource busy ...");
                 return false;
@@ -378,26 +349,14 @@ public:
     void reserve(size_t op_start_cycle, ql::gate * ins, std::string & operation_name,
         std::string & operation_type, std::string & instruction_type, size_t operation_duration)
     {
-        int n = crossbar_state->board_state.size();
-        std::pair<int, int> pos_a = crossbar_state->positions[ins->operands[0]];
+        crossbar_state_t* last_crossbar_state = get_last_crossbar_state(op_start_cycle);
+        std::pair<size_t, size_t> pos_a = last_crossbar_state->get_position_by_site(ins->operands[0]);
         
         if (instruction_type.compare("shuttle") == 0)
         {
             // Shuttling
             if (operation_name.compare("shuttle_up") == 0 || operation_name.compare("shuttle_down") == 0)
             {
-                // Barrier at the left
-                if (pos_a.second - 1 >= 0)
-                {
-                    reserve_vertical_barrier(op_start_cycle, operation_duration, pos_a.second - 1);
-                }
-                
-                // Barrier at the right
-                if (pos_a.second < n - 1)
-                {
-                    reserve_vertical_barrier(op_start_cycle, operation_duration, pos_a.second);
-                }
-                
                 int middle_barrier = 0;
                 if (operation_name.compare("shuttle_up") == 0)
                 {
@@ -409,34 +368,14 @@ public:
                 }
                 
                 // Barrier between qubit and destination
-                reserve_horizontal_barrier(op_start_cycle, operation_duration, middle_barrier);
+                reserve_horizontal_barrier(op_start_cycle, operation_duration,
+                        middle_barrier, barrier_state_t::lowered);
                 
-                // Barrier at the top
-                if (middle_barrier + 1 < n - 1)
-                {
-                    reserve_horizontal_barrier(op_start_cycle, operation_duration, middle_barrier + 1);
-                }
-                
-                // Barrier at the bottom
-                if (middle_barrier - 1 >= 0)
-                {
-                    reserve_horizontal_barrier(op_start_cycle, operation_duration, middle_barrier - 1);
-                }
+                reserve_border_barrier_upwards(op_start_cycle, operation_duration,
+                        middle_barrier, pos_a.second, barrier_state_t::raised);
             }
             else if (operation_name.compare("shuttle_left") == 0 || operation_name.compare("shuttle_right") == 0)
-            {                
-                // Barrier at the top
-                if (pos_a.first < n - 1)
-                {
-                    reserve_horizontal_barrier(op_start_cycle, operation_duration, pos_a.first);
-                }
-                
-                // Barrier at the bottom
-                if (pos_a.first - 1 >= 0)
-                {
-                    reserve_horizontal_barrier(op_start_cycle, operation_duration, pos_a.first - 1);
-                }
-                
+            {
                 int middle_barrier = 0;
                 if (operation_name.compare("shuttle_left") == 0)
                 {
@@ -448,104 +387,120 @@ public:
                 }
                 
                 // Barrier between qubit and destination
-                reserve_vertical_barrier(op_start_cycle, operation_duration, middle_barrier);
+                reserve_vertical_barrier(op_start_cycle, operation_duration,
+                        middle_barrier, barrier_state_t::lowered);
                 
-                // Barrier at the left
-                if (middle_barrier - 1 >= 0)
-                {
-                    reserve_vertical_barrier(op_start_cycle, operation_duration, middle_barrier - 1);
-                }
-                
-                // Barrier at the right
-                if (middle_barrier + 1 < n - 1)
-                {
-                    reserve_vertical_barrier(op_start_cycle, operation_duration, middle_barrier + 1);
-                }
+                reserve_border_barrier_rightwards(op_start_cycle, operation_duration,
+                        pos_a.first, middle_barrier, barrier_state_t::raised);
             }
         }
         else if (instruction_type.compare("single_qubit_gate") == 0)
         {
-            if (operation_name.compare("z_shuttle_left") == 0 || operation_name.compare("z_shuttle_right") == 0)
+            if (operation_name.rfind("_shuttle") != std::string::npos)
             {
-                // Barrier at the top
-                if (pos_a.first < n - 1)
-                {
-                    reserve_horizontal_barrier(op_start_cycle, operation_duration, pos_a.first);
-                }
-                
-                // Barrier at the bottom
-                if (pos_a.first - 1 >= 0)
-                {
-                    reserve_horizontal_barrier(op_start_cycle, operation_duration, pos_a.first - 1);
-                }
-                
                 int middle_barrier = 0;
-                if (operation_name.compare("z_shuttle_left") == 0)
+                if (operation_name.rfind("_shuttle_left") != std::string::npos)
                 {
                     middle_barrier = pos_a.second - 1;
                 }
-                else if (operation_name.compare("z_shuttle_right") == 0)
+                else if (operation_name.rfind("_shuttle_right") != std::string::npos)
                 {
                     middle_barrier = pos_a.second;
                 }
                 
                 // Barrier between qubit and destination
-                reserve_vertical_barrier(op_start_cycle, operation_duration, middle_barrier);
+                reserve_vertical_barrier(op_start_cycle, operation_duration,
+                        middle_barrier, barrier_state_t::lowered);
                 
-                // Barrier at the left
-                if (middle_barrier - 1 >= 0)
-                {
-                    reserve_vertical_barrier(op_start_cycle, operation_duration, middle_barrier - 1);
-                }
-                
-                // Barrier at the right
-                if (middle_barrier + 1 < n - 1)
-                {
-                    reserve_vertical_barrier(op_start_cycle, operation_duration, middle_barrier + 1);
-                }
+                reserve_border_barrier_rightwards(op_start_cycle, operation_duration,
+                        pos_a.first, middle_barrier, barrier_state_t::raised);
             }
             else
             {
                 // Single gate
+                
+                // Wave
                 for (size_t i = 0; i < count; i++)
                 {
-                    reserve_vertical_barrier(op_start_cycle, operation_duration, i);
-                    reserve_horizontal_barrier(op_start_cycle, operation_duration, i);
+                    // Fisrt wave
+                    reserve_vertical_barrier(
+                        op_start_cycle,
+                        crossbar_wave_resource_t::WAVE_DURATION_CYCLES * 2, i, barrier_state_t::raised);
+                    reserve_horizontal_barrier(
+                        op_start_cycle,
+                        crossbar_wave_resource_t::WAVE_DURATION_CYCLES * 2, i, barrier_state_t::raised);
+                    
+                    // Second wave
+                    reserve_vertical_barrier(
+                        op_start_cycle + operation_duration - crossbar_wave_resource_t::WAVE_DURATION_CYCLES,
+                        crossbar_wave_resource_t::WAVE_DURATION_CYCLES * 2, i, barrier_state_t::raised);
+                    reserve_horizontal_barrier(
+                        op_start_cycle + operation_duration - crossbar_wave_resource_t::WAVE_DURATION_CYCLES,
+                        crossbar_wave_resource_t::WAVE_DURATION_CYCLES * 2, i, barrier_state_t::raised);
                 }
+                
+                // Shuttle
+                int middle_barrier = 0;
+                if (operation_name.rfind("_left") != std::string::npos)
+                {
+                    // Left
+                    middle_barrier = pos_a.second - 1;
+                }
+                else if (operation_name.rfind("_right") != std::string::npos)
+                {
+                    // Right
+                    middle_barrier = pos_a.second;
+                }
+                else
+                {
+                    // Left then right
+                    if (pos_a.second > 0 && last_crossbar_state->get_count_by_site(ins->operands[0] - 1) == 0)
+                    {
+                        middle_barrier = pos_a.second - 1;
+                    }
+                    else if (pos_a.second < n - 1 && last_crossbar_state->get_count_by_site(ins->operands[0] + 1) == 0)
+                    {
+                        middle_barrier = pos_a.second;
+                    }
+                    else
+                    {
+                        DOUT("THIS SHOULD NEVER HAPPEN");
+                    }
+                }
+                
+                reserve_vertical_barrier(op_start_cycle, operation_duration,
+                        middle_barrier, barrier_state_t::lowered);
+                
+                reserve_border_barrier_rightwards(op_start_cycle, operation_duration,
+                        pos_a.first, middle_barrier, barrier_state_t::raised);
             }
         }
         else if (instruction_type.compare("two_qubit_gate") == 0)
         {
             // SQSWAP
-            std::pair<int, int> pos_b = crossbar_state->positions[ins->operands[1]];
-            int column = pos_a.second;
-            int middle_barrier = std::min(pos_a.first, pos_b.first);
+            std::pair<size_t, size_t> pos_b = last_crossbar_state->get_position_by_site(ins->operands[1]);
+            
+            if (operation_name.compare("sqswap") == 0)
+            {
+                int middle_barrier = std::min(pos_a.first, pos_b.first);
+                
+                // Barrier between qubit and destination
+                reserve_horizontal_barrier(op_start_cycle, operation_duration,
+                        middle_barrier, barrier_state_t::lowered);
 
-            // Barrier between qubits
-            reserve_horizontal_barrier(op_start_cycle, operation_duration, middle_barrier);
-            
-            // Barriers at the left
-            if (column > 0)
-            {
-                reserve_horizontal_barrier(op_start_cycle, operation_duration, column - 1);
+                reserve_border_barrier_upwards(op_start_cycle, operation_duration,
+                        middle_barrier, pos_a.second, barrier_state_t::raised);
             }
-            
-            // Barrier at the right
-            if (column < n - 1)
+            else if (operation_name.compare("cphase") == 0)
             {
-                reserve_horizontal_barrier(op_start_cycle, operation_duration, column);
-            }
-            
-            // Barriers at the top
-            if (middle_barrier < n - 2)
-            {
-                reserve_vertical_barrier(op_start_cycle, operation_duration, middle_barrier + 1);
-            }
-            
-            // Barrier at the bottom
-            if (middle_barrier > 0)
-            {
-                reserve_vertical_barrier(op_start_cycle, operation_duration, middle_barrier - 1);
+                int middle_barrier = std::min(pos_a.second, pos_b.second);
+                
+                // Barrier between qubit and destination
+                reserve_vertical_barrier(op_start_cycle, operation_duration,
+                        middle_barrier, barrier_state_t::lowered);
+
+                reserve_border_barrier_rightwards(op_start_cycle, operation_duration,
+                        pos_a.first, middle_barrier, barrier_state_t::raised);
             }
         }
         else if (instruction_type.compare("measurement_gate") == 0)
@@ -555,18 +510,6 @@ public:
             // --------------------------------
             // 1. Barriers for the first phase
             // --------------------------------
-            
-            // Barrier at the top
-            if (pos_a.first < n - 1)
-            {
-                reserve_horizontal_barrier(op_start_cycle, operation_duration, pos_a.first);
-            }
-
-            // Barrier at the bottom
-            if (pos_a.first - 1 >= 0)
-            {
-                reserve_horizontal_barrier(op_start_cycle, operation_duration, pos_a.first - 1);
-            }
             
             int middle_barrier = 0;
             if (operation_name.compare("measure_left_up") == 0 || operation_name.compare("measure_left_down") == 0)
@@ -578,36 +521,16 @@ public:
                 middle_barrier = pos_a.second;
             }
             
-            // Barrier between data and ancilla
-            reserve_vertical_barrier(op_start_cycle, operation_duration, middle_barrier);
-            
-            // Barrier at the left
-            if (middle_barrier - 1 >= 0)
-            {
-                reserve_vertical_barrier(op_start_cycle, operation_duration, middle_barrier - 1);
-            }
+            // Barrier between qubit and destination
+            reserve_vertical_barrier(op_start_cycle, operation_duration,
+                    middle_barrier, barrier_state_t::lowered);
 
-            // Barrier at the right
-            if (middle_barrier + 1 < n - 1)
-            {
-                reserve_vertical_barrier(op_start_cycle, operation_duration, middle_barrier + 1);
-            }
+            reserve_border_barrier_rightwards(op_start_cycle, operation_duration,
+                    pos_a.first, middle_barrier, barrier_state_t::raised);
             
             // --------------------------------
             // 2. Barriers for the second phase
             // --------------------------------
-            
-            // Barrier at the left
-            if (pos_a.second - 1 >= 0)
-            {
-                reserve_vertical_barrier(op_start_cycle, operation_duration, pos_a.second - 1);
-            }
-
-            // Barrier at the right
-            if (pos_a.second < n - 1)
-            {
-                reserve_vertical_barrier(op_start_cycle, operation_duration, pos_a.second);
-            }
             
             if (operation_name.compare("measure_left_up") == 0 || operation_name.compare("measure_right_up") == 0)
             {
@@ -618,80 +541,194 @@ public:
                 middle_barrier = pos_a.first - 1;
             }
             
-            // Barrier between data and ancilla
-            reserve_horizontal_barrier(op_start_cycle, operation_duration, middle_barrier);
+            // Barrier between qubit and destination
+            reserve_horizontal_barrier(op_start_cycle, operation_duration,
+                    middle_barrier, barrier_state_t::lowered);
+
+            reserve_border_barrier_upwards(op_start_cycle, operation_duration,
+                    middle_barrier, pos_a.second, barrier_state_t::raised);
+        }
+    }
+
+private:    
+    bool check_vertical_barrier(size_t op_start_cycle, size_t operation_duration, size_t index, barrier_state_t new_state)
+    {
+        std::cout << "Check v barrier " << index << " (" << vertical_barrier.size() << ") " << std::endl << std::flush;
+        
+        if (index >= 0 && index <= n - 2)
+        {
+            const auto &intervals = vertical_barrier[index].findOverlappingIntervals(
+                {op_start_cycle, op_start_cycle + operation_duration}
+            );
             
-            // Barrier at the top
-            if (middle_barrier + 1 >= 0)
-            {
-                reserve_horizontal_barrier(op_start_cycle, operation_duration, middle_barrier + 1);
-            }
-
-            // Barrier at the bottom
-            if (middle_barrier - 1 < n - 1)
-            {
-                reserve_horizontal_barrier(op_start_cycle, operation_duration, middle_barrier - 1);
-            }
-        }
-    }
-
-private:
-    bool check_vertical_barrier(size_t op_start_cycle, size_t operation_duration, size_t index)
-    {
-        size_t n = this->crossbar_state->board_state.size();
-        if (index >= 0 && index <= n - 2)
-        {
             if (direction == forward_scheduling)
             {
-                if (vertical_barrier_busy[index] > op_start_cycle)
+                for (const auto &interval : intervals)
                 {
-                    return false;
+                    if (interval.value != new_state)
+                    {
+                        return false;
+                    }
                 }
+                
+                // Check the position of qubits not used in same columns
+                /*for (int i = 0; i < crossbar_state->board_state.size(); i++)
+                {
+                    size_t left_site = crossbar_state->board_state[i][index];
+                    size_t right_site = crossbar_state->board_state[i][index + 1];
+                    
+                    if (left_site > 0 && right_site > 0)
+                    {
+                        // Two qubits in the same row
+                        throw new std::runtime_error("two qubits in the same row");
+                    }
+                    
+                }*/
             }
             else
             {
-                if (vertical_barrier_busy[index] < op_start_cycle + operation_duration)
-                {
-                    return false;
-                }
+                // TODO/
             }
         }
         
         return true;
     }
     
-    bool check_horizontal_barrier(size_t op_start_cycle, size_t operation_duration, size_t index)
+    bool check_horizontal_barrier(size_t op_start_cycle, size_t operation_duration, size_t index, barrier_state_t new_state)
     {
-        size_t n = this->crossbar_state->board_state.size();
+        std::cout << "Check h barrier " << index << " (" << horizontal_barrier.size() << ") " << std::endl << std::flush;
+        
         if (index >= 0 && index <= n - 2)
         {
+            const auto &intervals = horizontal_barrier[index].findOverlappingIntervals(
+                {op_start_cycle, op_start_cycle + operation_duration}
+            );
+            
             if (direction == forward_scheduling)
             {
-                if (horizontal_barrier_busy[index] > op_start_cycle)
+                for (const auto &interval : intervals)
                 {
-                    return false;
+                    if (interval.value != new_state)
+                    {
+                        return false;
+                    }
                 }
             }
             else
             {
-                if (horizontal_barrier_busy[index] < op_start_cycle + operation_duration)
-                {
-                    return false;
-                }
+                // TODO/
             }
         }
         
         return true;
     }
     
-    void reserve_vertical_barrier(size_t op_start_cycle, size_t operation_duration, size_t index)
+    bool check_border_barriers_upwards(size_t op_start_cycle, size_t operation_duration,
+        size_t i_index, size_t j_index, barrier_state_t new_state)
     {
-        vertical_barrier_busy[index] = (direction == forward_scheduling) ? op_start_cycle + operation_duration : op_start_cycle;
+        // Top
+        if (!check_horizontal_barrier(op_start_cycle, operation_duration, i_index + 1, new_state))
+        {
+            return false;
+        }
+        
+        // Bottom
+        if (!check_horizontal_barrier(op_start_cycle, operation_duration, i_index - 1, new_state))
+        {
+            return false;
+        }
+        
+        // Left
+        if (!check_vertical_barrier(op_start_cycle, operation_duration, j_index - 1, new_state))
+        {
+            return false;
+        }
+
+        // Right
+        if (!check_vertical_barrier(op_start_cycle, operation_duration, j_index, new_state))
+        {
+            return false;
+        }
+        
+        return true;
     }
     
-    void reserve_horizontal_barrier(size_t op_start_cycle, size_t operation_duration, size_t index)
+    bool check_border_barriers_rightwards(size_t op_start_cycle, size_t operation_duration,
+        size_t i_index, size_t j_index, barrier_state_t new_state)
     {
-        horizontal_barrier_busy[index] = (direction == forward_scheduling) ? op_start_cycle + operation_duration : op_start_cycle;
+        // Top
+        if (!check_horizontal_barrier(op_start_cycle, operation_duration, i_index, new_state))
+        {
+            return false;
+        }
+     
+        // Bottom
+        if (!check_horizontal_barrier(op_start_cycle, operation_duration, i_index - 1, new_state))
+        {
+            return false;
+        }
+        
+        // Left
+        if (!check_vertical_barrier(op_start_cycle, operation_duration, j_index - 1, new_state))
+        {
+            return false;
+        }
+
+        // Right
+        if (!check_vertical_barrier(op_start_cycle, operation_duration, j_index + 1, new_state))
+        {
+            return false;
+        }
+        
+        return true;
+    }
+    
+    void reserve_vertical_barrier(size_t op_start_cycle, size_t operation_duration, size_t index, barrier_state_t new_state)
+    {
+        if ((int)index >= 0 && index >= 0 && index <= n - 2)
+        {
+            vertical_barrier[index].insert({op_start_cycle, op_start_cycle + operation_duration, new_state});
+        }
+    }
+    
+    void reserve_horizontal_barrier(size_t op_start_cycle, size_t operation_duration, size_t index, barrier_state_t new_state)
+    {
+        if ((int)index >= 0 && index >= 0 && index <= n - 2)
+        {
+            horizontal_barrier[index].insert({op_start_cycle, op_start_cycle + operation_duration, new_state});
+        }
+    }
+    
+    void reserve_border_barrier_upwards(size_t op_start_cycle, size_t operation_duration,
+        size_t i_index, size_t j_index, barrier_state_t new_state)
+    {
+        // Top
+        reserve_horizontal_barrier(op_start_cycle, operation_duration, i_index + 1, new_state);
+        
+        // Bottom
+        reserve_horizontal_barrier(op_start_cycle, operation_duration, i_index - 1, new_state);
+        
+        // Left
+        reserve_vertical_barrier(op_start_cycle, operation_duration, j_index - 1, new_state);
+        
+        // Right
+        reserve_vertical_barrier(op_start_cycle, operation_duration, j_index, new_state);
+    }
+    
+    void reserve_border_barrier_rightwards(size_t op_start_cycle, size_t operation_duration,
+        size_t i_index, size_t j_index, barrier_state_t new_state)
+    {
+        // Top
+        reserve_horizontal_barrier(op_start_cycle, operation_duration, i_index, new_state);
+        
+        // Bottom
+        reserve_horizontal_barrier(op_start_cycle, operation_duration, i_index - 1, new_state);
+        
+        // Left
+        reserve_vertical_barrier(op_start_cycle, operation_duration, j_index - 1, new_state);
+        
+        // Right
+        reserve_vertical_barrier(op_start_cycle, operation_duration, j_index + 1, new_state);
     }
 };
 

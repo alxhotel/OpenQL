@@ -8,8 +8,9 @@
 #ifndef CROSSBAR_SITE_RESOURCE_H
 #define CROSSBAR_SITE_RESOURCE_H
 
+#include <map>
 #include <vector>
-#include <ql/resource_manager.h>
+#include <ql/arch/crossbar/crossbar_resource.h>
 #include <ql/arch/crossbar/crossbar_state.h>
 
 namespace ql
@@ -22,25 +23,16 @@ namespace crossbar
 /**
  * Site resource type
  */
-class crossbar_site_resource_t : public resource_t
+class crossbar_site_resource_t : public crossbar_resource_t
 {
 public:
-    crossbar_state_t * crossbar_state;
-    
-    std::map<size_t, std::map<size_t, size_t>> site_state;
+    std::map<size_t, std::map<size_t, Intervals::IntervalTree<size_t, size_t>>> site_state;
     
     crossbar_site_resource_t(const ql::quantum_platform & platform,
-        ql::scheduling_direction_t dir, crossbar_state_t * crossbar_state_local)
-        : resource_t("sites", dir), crossbar_state(crossbar_state_local)
+        ql::scheduling_direction_t dir, std::map<size_t, crossbar_state_t*> crossbar_states_local)
+        : crossbar_resource_t("sites", dir, crossbar_states_local)
     {
-        for (size_t i = 0; i < crossbar_state_local->board_state.size(); i++)
-        {
-            site_state[i] = {};
-            for (size_t j = 0; j < crossbar_state_local->board_state[i].size(); j++)
-            {
-                site_state[i][j] = (dir == forward_scheduling ? 0 : MAX_CYCLE);
-            }
-        }
+        count = (m * n);
     }
 
     crossbar_site_resource_t* clone() const & { return new crossbar_site_resource_t(*this);}
@@ -50,8 +42,8 @@ public:
         std::string & operation_type, std::string & instruction_type, size_t operation_duration)
     {
         // Get params
-        size_t n = crossbar_state->board_state.size();
-        std::pair<size_t, size_t> pos_a = crossbar_state->positions[ins->operands[0]];
+        crossbar_state_t* last_crossbar_state = get_last_crossbar_state(op_start_cycle);
+        std::pair<size_t, size_t> pos_a = last_crossbar_state->get_position_by_site(ins->operands[0]);
         
         if (instruction_type.compare("shuttle") == 0)
         {
@@ -110,12 +102,12 @@ public:
             else
             {
                 // Global single qubit gate
-                if (pos_a.second - 1 >= 0 && crossbar_state->board_state[pos_a.first][pos_a.second - 1] == 0)
+                if (pos_a.second - 1 >= 0 && last_crossbar_state->board_state[pos_a.first][pos_a.second - 1] == 0)
                 {
                     // Left site is empty
                     destination_site = std::make_pair(pos_a.first, pos_a.second - 1);
                 }
-                else if (pos_a.second + 1 <= n - 2 && crossbar_state->board_state[pos_a.first][pos_a.second + 1] == 0)
+                else if (pos_a.second + 1 <= n - 2 && last_crossbar_state->board_state[pos_a.first][pos_a.second + 1] == 0)
                 {
                     // Right site is empty
                     destination_site = std::make_pair(pos_a.first, pos_a.second + 1);
@@ -140,7 +132,7 @@ public:
         {
             // Two qubit gate
             std::pair<size_t, size_t> origin_site = pos_a;
-            std::pair<size_t, size_t> destination_site = crossbar_state->positions[ins->operands[1]];
+            std::pair<size_t, size_t> destination_site = last_crossbar_state->get_position_by_site(ins->operands[1]);
             
             // Origin site
             if (!check_site(op_start_cycle, operation_duration, origin_site))
@@ -213,7 +205,8 @@ public:
         std::string & operation_type, std::string & instruction_type, size_t operation_duration)
     {
         // Get params
-        std::pair<size_t, size_t> pos_a = crossbar_state->positions[ins->operands[0]];
+        crossbar_state_t* last_crossbar_state = get_last_crossbar_state(op_start_cycle);
+        std::pair<size_t, size_t> pos_a = last_crossbar_state->get_position_by_site(ins->operands[0]);
         
         if (instruction_type.compare("shuttle") == 0)
         {
@@ -265,12 +258,12 @@ public:
             else
             {
                 // Global single qubit gate
-                if (pos_a.second - 1 >= 0 && crossbar_state->board_state[pos_a.first][pos_a.second - 1] == 0)
+                if (pos_a.second - 1 >= 0 && last_crossbar_state->board_state[pos_a.first][pos_a.second - 1] == 0)
                 {
                     // Left site is empty
                     destination_site = std::make_pair(pos_a.first, pos_a.second - 1);
                 }
-                else if (pos_a.second + 1 >= 0 && crossbar_state->board_state[pos_a.first][pos_a.second + 1] == 0)
+                else if (pos_a.second + 1 >= 0 && last_crossbar_state->board_state[pos_a.first][pos_a.second + 1] == 0)
                 {
                     // Right site is empty
                     destination_site = std::make_pair(pos_a.first, pos_a.second + 1);
@@ -287,7 +280,7 @@ public:
         {
             // Two qubit gate
             std::pair<size_t, size_t> origin_site = pos_a;
-            std::pair<size_t, size_t> destination_site = crossbar_state->positions[ins->operands[1]];
+            std::pair<size_t, size_t> destination_site = last_crossbar_state->get_position_by_site(ins->operands[1]);
             
             // Origin site
             reserve_site(op_start_cycle, operation_duration, origin_site);
@@ -336,19 +329,23 @@ public:
 private:
     bool check_site(size_t op_start_cycle, size_t operation_duration, std::pair<size_t, size_t> site)
     {
+        const auto &intervals = site_state[site.first][site.second].findOverlappingIntervals(
+            {op_start_cycle, op_start_cycle + operation_duration}
+        );
+        
         if (direction == forward_scheduling)
         {
-            if (op_start_cycle < site_state[site.first][site.second])
+            for (const auto &interval : intervals)
             {
-                return false;
+                if (interval.value >= 1)
+                {
+                    return false;
+                }
             }
         }
         else
         {
-            if (op_start_cycle + operation_duration > site_state[site.first][site.second])
-            {
-                return false;
-            }
+            // TODO
         }
         
         return true;
@@ -356,9 +353,7 @@ private:
     
     void reserve_site(size_t op_start_cycle, size_t operation_duration, std::pair<size_t, size_t> site)
     {
-        site_state[site.first][site.second] = (direction == forward_scheduling)
-                ? op_start_cycle + operation_duration
-                : op_start_cycle;
+        site_state[site.first][site.second].insert({op_start_cycle, op_start_cycle + operation_duration, 1});
     }
 };
 

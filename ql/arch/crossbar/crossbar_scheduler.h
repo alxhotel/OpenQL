@@ -66,7 +66,6 @@ public:
 
         Scheduler scheduler;
         scheduler.Init(ckt, platform, num_qubits, num_creg);
-        //crossbar_resource_manager_t rm;
         ql::ir::bundles_t bundles;
         std::string scheduler_opt = ql::options::get("scheduler");
 
