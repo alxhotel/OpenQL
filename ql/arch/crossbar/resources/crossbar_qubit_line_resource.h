@@ -147,21 +147,12 @@ public:
                 {
                     // Get sites of other_condition
                     std::vector<size_t> condition_sites;
-                    //int other_ql_a = this->crossbar_state->get_ql_by_site(other_ql_info->operands[0]);
-                    //int other_ql_b = this->crossbar_state->get_ql_by_site(other_ql_info->operands[1]);
-                    
-                    if (abs(other_ql_info->operands[0] - other_ql_info->operands[1]) == 1)
-                    {
-                        // Horizontal
-                        //condition_sites.pusb_back(other_ql_a - other_condition->ql_a );
-                        //condition_sites.push_back();
-                    }
-                    else
-                    {
-                        // Vertical
-                       // condition_sites.pusb_back(other_ql_a - other_condition->ql_a );
-                        //condition_sites.push_back();
-                    }
+                    condition_sites.push_back(crossbar_state->get_site_by_pos(
+                        other_condition->pos_a_i, other_condition->pos_a_j
+                    ));
+                    condition_sites.push_back(crossbar_state->get_site_by_pos(
+                        other_condition->pos_b_i, other_condition->pos_b_j
+                    ));
                     
                     bool equal = true;
                     for (size_t site : this->operands)
@@ -183,6 +174,8 @@ public:
                     {
                         return true;
                     }
+                    
+                    return true;
                 }
             }
         }
@@ -623,7 +616,7 @@ private:
                     {
                         // Qubit in a_j
                         ql_condition* my_condition = new ql_condition(
-                            pos_a_j - k, pos_b_j - k, line_mode_t::voltage, cond_t::less
+                            k, pos_a_j, k, pos_b_j, line_mode_t::voltage, cond_t::less
                         );
                         my_ql_info->conditions.push_back(my_condition);
                     }
@@ -632,7 +625,7 @@ private:
                     {
                         // Qubit in b_j
                         ql_condition* my_condition = new ql_condition(
-                            pos_b_j - k, pos_a_j - k, line_mode_t::voltage, cond_t::less
+                            k, pos_b_j, k, pos_a_j, line_mode_t::voltage, cond_t::less
                         );
                         my_ql_info->conditions.push_back(my_condition);
                     }
@@ -653,7 +646,7 @@ private:
                     {
                         // Qubit in a_j
                         ql_condition* my_condition = new ql_condition(
-                            k - pos_a_i, k - pos_b_i, line_mode_t::voltage, cond_t::less
+                            pos_a_i, k, pos_b_i, k, line_mode_t::voltage, cond_t::less
                         );
                         my_ql_info->conditions.push_back(my_condition);
                     }
@@ -662,7 +655,7 @@ private:
                     {
                         // Qubit in b_j
                         ql_condition* my_condition = new ql_condition(
-                            k - pos_b_i, k - pos_a_i, line_mode_t::voltage, cond_t::less
+                            pos_b_i, k, pos_a_i, k, line_mode_t::voltage, cond_t::less
                         );
                         my_ql_info->conditions.push_back(my_condition);
                     }
@@ -674,14 +667,10 @@ private:
                     }
                 }
             }
-
-            // Get current QL lines
-            int ql_a = pos_a_j - pos_a_i;
-            int ql_b = pos_b_j - pos_b_i;
             
             // Add my current QL
             ql_condition* my_condition = new ql_condition(
-                ql_a, ql_b, line_mode, less_or_equal
+                pos_a_i, pos_a_j, pos_b_i, pos_b_j, line_mode, less_or_equal
             );
             my_ql_info->conditions.push_back(my_condition);
             

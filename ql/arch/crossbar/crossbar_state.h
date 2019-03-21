@@ -69,6 +69,11 @@ public:
         return this->board_state[i][j];
     }
     
+    size_t get_site_by_pos(size_t i, size_t j)
+    {
+        return (i * this->board_state.size()) + j;
+    }
+    
     void shuttle_up(size_t qubit_index)
     {
         std::pair<size_t, size_t> pos = this->positions[qubit_index];

@@ -570,24 +570,10 @@ private:
                         return false;
                     }
                 }
-                
-                // Check the position of qubits not used in same columns
-                /*for (int i = 0; i < crossbar_state->board_state.size(); i++)
-                {
-                    size_t left_site = crossbar_state->board_state[i][index];
-                    size_t right_site = crossbar_state->board_state[i][index + 1];
-                    
-                    if (left_site > 0 && right_site > 0)
-                    {
-                        // Two qubits in the same row
-                        throw new std::runtime_error("two qubits in the same row");
-                    }
-                    
-                }*/
             }
             else
             {
-                // TODO/
+                // TODO
             }
         }
         
@@ -616,7 +602,7 @@ private:
             }
             else
             {
-                // TODO/
+                // TODO
             }
         }
         
