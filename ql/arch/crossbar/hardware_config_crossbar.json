@@ -15,7 +15,7 @@
 	},
 
 	"topology": {
-		"configuration": {
+		"init_configuration": {
 			"0": {
 				"type": "data",
 				"position": [1, 1]

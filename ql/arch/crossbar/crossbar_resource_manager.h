@@ -71,10 +71,10 @@ public:
         }
         
         // Initialize the configuration
-        if (platform.topology.count("configuration") > 0)
+        if (platform.topology.count("init_configuration") > 0)
         {
-            for (json::const_iterator it = platform.topology["configuration"].begin();
-                it != platform.topology["configuration"].end(); ++it)
+            for (json::const_iterator it = platform.topology["init_configuration"].begin();
+                it != platform.topology["init_configuration"].end(); ++it)
             {
                 int key = std::stoi(it.key());
                 std::string type = it.value()["type"];

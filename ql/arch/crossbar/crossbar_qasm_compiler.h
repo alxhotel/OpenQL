@@ -131,8 +131,8 @@ private:
         int m = platform.topology["y_size"];
         int n = platform.topology["x_size"];
         crossbar_state_t* crossbar_state = new crossbar_state_t(m, n);
-        for (json::const_iterator it = platform.topology["configuration"].begin();
-            it != platform.topology["configuration"].end(); ++it)
+        for (json::const_iterator it = platform.topology["init_configuration"].begin();
+            it != platform.topology["init_configuration"].end(); ++it)
         {
             int key = std::stoi(it.key());
             std::string type = it.value()["type"];
