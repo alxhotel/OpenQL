@@ -35,6 +35,39 @@ public:
 
 public:
     
+    void map(std::string prog_name, std::vector<quantum_kernel>& kernels, const ql::quantum_platform& platform)
+    {
+        /*for(auto &kernel : kernels)
+        {
+            // don't trust the cycle fields in the instructions
+            // and let write_qasm print the circuit instead of the bundles
+            kernel.bundles.clear();
+        }
+
+        Mapper mapper;  // virgin mapper creation; for role of Init functions, see comment at top of mapper.h
+        mapper.Init(platform); // platform specifies number of real qubits, i.e. locations for virtual qubits
+        for(auto &kernel : kernels)
+        {
+            auto mapopt = ql::options::get("mapper");
+            if (mapopt == "no" )
+            {
+                IOUT("Not mapping kernel");
+                continue;;
+            }
+            IOUT("Mapping kernel: " << kernel.name);
+            mapper.MapCircuit(kernel.c, kernel.name, kernel.qubit_count, kernel.creg_count);
+                // kernel.qubit_count is number of virtual qubits, i.e. highest indexed qubit minus 1
+                // and kernel.qubit_count is updated to real highest index used minus -1
+            kernel.bundles = mapper.Bundler(kernel.c);
+            mapper.GetNumberOfSwapsAdded(kernel.swaps_added);
+            mapper.GetNumberOfMovesAdded(kernel.moves_added);
+        }
+        std::stringstream mapper_out_fname;
+        mapper_out_fname << ql::options::get("output_dir") << "/" << prog_name << "_mapper_out.qasm";
+        IOUT("writing mapper output qasm to '" << mapper_out_fname.str() << "' ...");
+        write_qasm(mapper_out_fname, kernels, platform);*/
+    }
+    
     /**
      * Program-level compilation of qasm to crossbar_qasm
      */
@@ -54,6 +87,8 @@ public:
         load_hw_settings(platform);
 
         // TOOD: Do mapping
+        
+        // map(prog_name, kernels, platform);
         
         // Translate qubits to sites
         kernels = qubits_to_sites(kernels, platform);
