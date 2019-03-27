@@ -70,20 +70,22 @@ public:
             throw ql::exception("[x] Error: Grid topology for the crossbar was not defined!", false);
         }
         
-        // Initialize the positions
-        if (platform.topology.count("positions") > 0)
+        // Initialize the configuration
+        if (platform.topology.count("configuration") > 0)
         {
-            for (json::const_iterator it = platform.topology["positions"].begin(); it != platform.topology["positions"].end(); ++it)
+            for (json::const_iterator it = platform.topology["configuration"].begin();
+                it != platform.topology["configuration"].end(); ++it)
             {
                 int key = std::stoi(it.key());
-                std::vector<int> value = it.value();
-                initial_crossbar_state->add_qubit(value[0], value[1], key);
+                std::string type = it.value()["type"];
+                std::vector<int> value = it.value()["position"];
+                initial_crossbar_state->add_qubit(value[0], value[1], key, (type.compare("ancilla") == 0));
             }
         }
         else
         {
-            COUT("Error: Qubit positions for the crossbar were not defined");
-            throw ql::exception("[x] Error: Qubit positions for the crossbar were not defined!", false);
+            COUT("Error: Qubit init placement for the crossbar were not defined");
+            throw ql::exception("[x] Error: Qubit init placement for the crossbar were not defined!", false);
         }
         
         // Add initial placement to the current state

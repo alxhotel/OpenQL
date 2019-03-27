@@ -23,6 +23,7 @@ class crossbar_state_t
 public:
     std::map<size_t, std::pair<size_t, size_t>> positions;
     std::map<size_t, std::map<size_t, size_t>> board_state;
+    std::map<size_t, bool> is_ancilla_map;
     
     crossbar_state_t() {}
     
@@ -39,10 +40,11 @@ public:
     crossbar_state_t* clone() const & { return new crossbar_state_t(*this);}
     crossbar_state_t* clone() && { return new crossbar_state_t(std::move(*this)); }
     
-    void add_qubit(size_t i, size_t j, size_t qubit_index)
+    void add_qubit(size_t i, size_t j, size_t qubit_index, bool is_ancilla = false)
     {
         this->positions[qubit_index] = std::make_pair(i, j);
         this->board_state[i][j]++;
+        this->is_ancilla_map[qubit_index] = is_ancilla;
     }
     
     std::pair<size_t, size_t> get_position_by_qubit(size_t qubit_index)

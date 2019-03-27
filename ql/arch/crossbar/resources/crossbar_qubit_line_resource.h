@@ -142,10 +142,10 @@ public:
         for (ql_condition* my_condition : this->conditions)
         {
             for (ql_condition* other_condition : other_ql_info->conditions)
-            {
+            {   
                 if (my_condition->has_conflict(other_condition))
                 {
-                    // Get sites of other_condition
+                    // Get conflicting sites
                     std::vector<size_t> condition_sites;
                     condition_sites.push_back(crossbar_state->get_site_by_pos(
                         other_condition->pos_a_i, other_condition->pos_a_j
@@ -154,17 +154,49 @@ public:
                         other_condition->pos_b_i, other_condition->pos_b_j
                     ));
                     
-                    bool equal = true;
+                    std::cout << "other owner " << (int) other_ql_info->operands[0]  << std::endl << std::flush;
+                    std::cout << "other owener " << (int) other_ql_info->operands[1]  << std::endl << std::flush;
+                    std::cout << "other " << (int) other_condition->line_mode  << std::endl << std::flush;
+                    std::cout << "other " << (int) other_condition->less_or_equal  << std::endl << std::flush;
+                    std::cout << "other " << (int) other_condition->pos_a_i  << std::endl << std::flush;
+                    std::cout << "other " << (int) other_condition->pos_a_j  << std::endl << std::flush;
+                    std::cout << "other " << (int) other_condition->pos_b_i  << std::endl << std::flush;
+                    std::cout << "other " << (int) other_condition->pos_b_j  << std::endl << std::flush;
+                    
+                    std::cout << "me " << (int) other_condition->line_mode  << std::endl << std::flush;
+                    std::cout << "me " << (int) other_condition->less_or_equal  << std::endl << std::flush;
+                    std::cout << "me " << (int) my_condition->pos_a_i  << std::endl << std::flush;
+                    std::cout << "me " << (int) my_condition->pos_a_j  << std::endl << std::flush;
+                    std::cout << "me " << (int) my_condition->pos_b_i  << std::endl << std::flush;
+                    std::cout << "me " << (int) my_condition->pos_b_j  << std::endl << std::flush;
+                    
+                    std::cout << "SITE " << (int) condition_sites[0]  << std::endl << std::flush;
+                    std::cout << "SITE " << (int) condition_sites[1]  << std::endl << std::flush;
+                    
+                    bool this_is_owner = true;
+                    
+                    // Check if I am the owner
                     for (size_t site : this->operands)
                     {
                         if (std::find(condition_sites.begin(), condition_sites.end(), site) == condition_sites.end())
                         {
-                            equal = false;
+                            this_is_owner = false;
                             break;
                         }
                     }
                     
-                    if (equal)
+                    // Check if "other" is the owner
+                    bool other_is_owner = true;
+                    for (size_t site : other_ql_info->operands)
+                    {
+                        if (std::find(condition_sites.begin(), condition_sites.end(), site) == condition_sites.end())
+                        {
+                            other_is_owner = false;
+                            break;
+                        }
+                    }
+                    
+                    if (this_is_owner || other_is_owner)
                     {
                         // No conflict
                         // Because this instruction is the owner of the sites
@@ -206,388 +238,21 @@ public:
     bool available(size_t op_start_cycle, ql::gate * ins, std::string & operation_name,
         std::string & operation_type, std::string & instruction_type, size_t operation_duration)
     {
-        // Get params
-        crossbar_state_t* last_crossbar_state = get_last_crossbar_state(op_start_cycle);
-        std::pair<size_t, size_t> pos_a = last_crossbar_state->get_position_by_site(ins->operands[0]);
-        
-        if (instruction_type.compare("shuttle") == 0)
+        if (available_or_reserve(op_start_cycle, ins, operation_name,
+                operation_type, instruction_type, operation_duration, false))
         {
-            // Shuttling
-            if (operation_name.compare("shuttle_up") == 0 || operation_name.compare("shuttle_down") == 0)
-            {
-                size_t new_pos_a_i = 0;
-                if (operation_name.compare("shuttle_up") == 0)
-                {
-                    new_pos_a_i = pos_a.first + 1;
-                }
-                else if (operation_name.compare("shuttle_down") == 0)
-                {
-                    new_pos_a_i = pos_a.first - 1;
-                }
-                
-                if (!check_line(
-                    operation_name, ins->operands,
-                    op_start_cycle, operation_duration,
-                    pos_a.first, pos_a.second, new_pos_a_i, pos_a.second,
-                    line_mode_t::voltage, cond_t::less))
-                {
-                    DOUT("    " << name << " resource busy ...");
-                    return false;
-                }
-            }
-            else if (operation_name.compare("shuttle_left") == 0 || operation_name.compare("shuttle_right") == 0)
-            {
-                size_t new_pos_a_j = 0;
-                if (operation_name.compare("shuttle_left") == 0)
-                {
-                    new_pos_a_j = pos_a.second - 1;
-                }
-                else if (operation_name.compare("shuttle_right") == 0)
-                {
-                    new_pos_a_j = pos_a.second + 1;
-                }
-                
-                if (!check_line(
-                    operation_name, ins->operands,
-                    op_start_cycle, operation_duration,
-                    pos_a.first, pos_a.second, pos_a.first, new_pos_a_j,
-                    line_mode_t::voltage, cond_t::less))
-                {
-                    DOUT("    " << name << " resource busy ...");
-                    return false;
-                }
-            }
-        }
-        else if (instruction_type.compare("one_qubit_gate") == 0)
-        {
-            // One qubit gate
-            size_t new_pos_a_j = 0;
-                
-            // Z, S & T gate by shuttling
-            if (operation_name.rfind("_shuttle") != std::string::npos)
-            {
-                if (operation_name.rfind("_shuttle_left") != std::string::npos)
-                {
-                    new_pos_a_j = pos_a.second - 1;
-                }
-                else if (operation_name.rfind("_shuttle_right") != std::string::npos)
-                {
-                    new_pos_a_j = pos_a.second + 1;
-                }
-                
-                // Shuttle to the next column
-                if (!check_line(
-                    operation_name, ins->operands,
-                    op_start_cycle, operation_duration / 2,
-                    pos_a.first, pos_a.second, pos_a.first, new_pos_a_j,
-                    line_mode_t::voltage, cond_t::less))
-                {
-                    DOUT("    " << name << " resource busy ...");
-                    return false;
-                }
-                
-                // Shuttle back
-                if (!check_line(
-                    operation_name, ins->operands,
-                    op_start_cycle + operation_duration / 2, operation_duration / 2,
-                    pos_a.first, new_pos_a_j, pos_a.first, pos_a.second,
-                    line_mode_t::voltage, cond_t::less))
-                {
-                    DOUT("    " << name << " resource busy ...");
-                    return false;
-                }
-            }
-            else
-            {
-                // Qubit lines used to make the auxiliary shuttle between waves
-                if (pos_a.second - 1 >= 0 && last_crossbar_state->board_state[pos_a.first][pos_a.second - 1] == 0)
-                {
-                    new_pos_a_j = pos_a.second - 1;
-                }
-                else if (pos_a.second + 1 <= n - 2
-                    && last_crossbar_state->board_state[pos_a.first][pos_a.second + 1] == 0)
-                {
-                    new_pos_a_j = pos_a.second + 1;
-                }
-                else
-                {
-                    // Both sites are empty
-                    DOUT("    " << name << " resource busy ...");
-                    return false;
-                }
-                
-                if (!check_line(
-                    operation_name, ins->operands,
-                    op_start_cycle, operation_duration,
-                    pos_a.first, pos_a.second, pos_a.first, new_pos_a_j,
-                    line_mode_t::voltage, cond_t::less))
-                {
-                    DOUT("    " << name << " resource busy ...");
-                    return false;
-                }
-            }
-        }
-        else if (instruction_type.compare("two_qubit_gate") == 0)
-        {
-            // Two qubit gate
-            std::pair<size_t, size_t> pos_b = last_crossbar_state->get_position_by_site(ins->operands[1]);
-            
-            if (operation_name.compare("sqswap") == 0)
-            {
-                if (!check_line(
-                    operation_name, ins->operands,
-                    op_start_cycle, operation_duration,
-                    pos_a.first, pos_a.second, pos_b.first, pos_b.second,
-                    line_mode_t::voltage, cond_t::equal))
-                {
-                    DOUT("    " << name << " resource busy ...");
-                    return false;
-                }
-            }
-            else if (operation_name.compare("cphase") == 0)
-            {
-                if (!check_line(
-                    operation_name, ins->operands,
-                    op_start_cycle, operation_duration,
-                    pos_a.first, pos_a.second, pos_b.first, pos_b.second,
-                    line_mode_t::voltage, cond_t::equal))
-                {
-                    DOUT("    " << name << " resource busy ...");
-                    return false;
-                }
-            }
-        }
-        else if (instruction_type.compare("measurement") == 0)
-        {
-            // Measurement
-            
-            // ------------------------------
-            // 1. Qubit lines for first phase
-            // ------------------------------
-            size_t new_pos_a_j = 0;
-            
-            if (instruction_type.compare("measurement_left_up") == 0 || instruction_type.compare("measurement_left_down") == 0)
-            {
-                new_pos_a_j = pos_a.second - 1;
-            }
-            else if (instruction_type.compare("measurement_right_up") == 0
-                || instruction_type.compare("measurement_right_down") == 0)
-            {
-                new_pos_a_j = pos_a.second + 1;
-            }
-            
-            if (!check_line(
-                operation_name, ins->operands,
-                op_start_cycle, operation_duration,
-                pos_a.first, pos_a.second, pos_a.first, new_pos_a_j,
-                line_mode_t::voltage, cond_t::less))
-            {
-                DOUT("    " << name << " resource busy ...");
-                return false;
-            }
-            
-            // ------------------------------
-            // 2. Qubit lines for second phase
-            // ------------------------------
-            size_t new_pos_a_i = 0;
-            
-            if (instruction_type.compare("measurement_left_up") == 0
-                || instruction_type.compare("measurement_right_up") == 0)
-            {
-                new_pos_a_i = pos_a.first + 1;
-            }
-            else if (instruction_type.compare("measurement_left_down") == 0
-                || instruction_type.compare("measurement_right_down") == 0)
-            {
-                new_pos_a_i = pos_a.first - 1;
-            }
-            
-            if (!check_line(
-                operation_name, ins->operands,
-                op_start_cycle, operation_duration,
-                pos_a.first, pos_a.second, new_pos_a_i, pos_a.second,
-                line_mode_t::signal))
-            {
-                DOUT("    " << name << " resource busy ...");
-                return false;
-            }
+            DOUT("    " << name << " resource available ...");
+            return true;
         }
         
-        DOUT("    " << name << " resource available ...");
-        return true;
+        return false;
     }
     
     void reserve(size_t op_start_cycle, ql::gate * ins, std::string & operation_name,
         std::string & operation_type, std::string & instruction_type, size_t operation_duration)
     {
-        // Get params
-        crossbar_state_t* last_crossbar_state = get_last_crossbar_state(op_start_cycle);
-        std::pair<size_t, size_t> pos_a = last_crossbar_state->get_position_by_site(ins->operands[0]);
-        
-        if (instruction_type.compare("shuttle") == 0)
-        {
-            // Shuttling
-            if (operation_name.compare("shuttle_up") == 0 || operation_name.compare("shuttle_down") == 0)
-            {
-                size_t new_pos_a_i = 0;
-                if (operation_name.compare("shuttle_up") == 0)
-                {
-                    new_pos_a_i = pos_a.first + 1;
-                }
-                else if (operation_name.compare("shuttle_down") == 0)
-                {
-                    new_pos_a_i = pos_a.first - 1;
-                }
-                
-                reserve_line(
-                    operation_name, ins->operands,
-                    op_start_cycle, operation_duration,
-                    pos_a.first, pos_a.second, new_pos_a_i, pos_a.second,
-                    line_mode_t::voltage, cond_t::less);
-            }
-            else if (operation_name.compare("shuttle_left") == 0 || operation_name.compare("shuttle_right") == 0)
-            {
-                size_t new_pos_a_j = 0;
-                if (operation_name.compare("shuttle_left") == 0)
-                {
-                    new_pos_a_j = pos_a.second - 1;
-                }
-                else if (operation_name.compare("shuttle_right") == 0)
-                {
-                    new_pos_a_j = pos_a.second + 1;
-                }
-                
-                reserve_line(
-                    operation_name, ins->operands,
-                    op_start_cycle, operation_duration,
-                    pos_a.first, pos_a.second, pos_a.first, new_pos_a_j,
-                    line_mode_t::voltage, cond_t::less);
-            }
-        }
-        else if (instruction_type.compare("one_qubit_gate") == 0)
-        {
-            // One qubit gate
-            size_t new_pos_a_j = 0;
-            
-            // Z gate by shuttling
-            if (operation_name.rfind("_shuttle_left") != std::string::npos)
-            {
-                if (operation_name.rfind("_shuttle_left") != std::string::npos)
-                {
-                    new_pos_a_j = pos_a.second - 1;
-                }
-                else if (operation_name.rfind("_shuttle_right") != std::string::npos)
-                {
-                    new_pos_a_j = pos_a.second + 1;
-                }
-                
-                reserve_line(
-                    operation_name, ins->operands,
-                    op_start_cycle, operation_duration / 2,
-                    pos_a.first, pos_a.second, pos_a.first, new_pos_a_j,
-                    line_mode_t::voltage, cond_t::less);
-                
-                reserve_line(
-                    operation_name, ins->operands,
-                    op_start_cycle + operation_duration / 2, operation_duration / 2,
-                    pos_a.first, new_pos_a_j, pos_a.first, pos_a.second,
-                    line_mode_t::voltage, cond_t::less);
-            }
-            else
-            {
-                // Qubit lines used to ma e a auxiliary shuttle between waves
-                if (pos_a.second - 1 >= 0 && last_crossbar_state->board_state[pos_a.first][pos_a.second - 1] == 0)
-                {
-                    new_pos_a_j = pos_a.second - 1;
-                }
-                else if (pos_a.second + 1 <= n - 2
-                    && last_crossbar_state->board_state[pos_a.first][pos_a.second + 1] == 0)
-                {
-                    new_pos_a_j = pos_a.second + 1;
-                }
-                else
-                {
-                    // This should never happen
-                }
-                
-                reserve_line(
-                    operation_name, ins->operands,
-                    op_start_cycle + crossbar_wave_resource_t::WAVE_DURATION_CYCLES,
-                    operation_duration - (crossbar_wave_resource_t::WAVE_DURATION_CYCLES * 2),
-                    pos_a.first, pos_a.second, pos_a.first, new_pos_a_j,
-                    line_mode_t::voltage, cond_t::less);
-            }
-        }
-        else if (instruction_type.compare("two_qubit_gate") == 0)
-        {
-            // Two qubit gate
-            std::pair<size_t, size_t> pos_b = last_crossbar_state->get_position_by_site(ins->operands[1]);
-            
-            if (operation_name.compare("sqswap") == 0)
-            {
-                reserve_line(
-                    operation_name, ins->operands,
-                    op_start_cycle, operation_duration,
-                    pos_a.first, pos_a.second, pos_b.first, pos_b.second,
-                    line_mode_t::voltage, cond_t::equal);
-            }
-            else if (operation_name.compare("cphase") == 0)
-            {
-                reserve_line(
-                    operation_name, ins->operands,
-                    op_start_cycle, operation_duration,
-                    pos_a.first, pos_a.second, pos_b.first, pos_b.second,
-                    line_mode_t::voltage, cond_t::equal);
-            }
-        }
-        else if (instruction_type.compare("measurement") == 0)
-        {
-            // Measurement
-            
-            // ------------------------------
-            // 1. Qubit lines for first phase
-            // ------------------------------
-            size_t new_pos_a_j = 0;
-            
-            if (instruction_type.compare("measurement_left_up") == 0
-                || instruction_type.compare("measurement_left_down") == 0)
-            {
-                new_pos_a_j = pos_a.second - 1;
-            }
-            else if (instruction_type.compare("measurement_right_up") == 0
-                || instruction_type.compare("measurement_right_down") == 0)
-            {
-                new_pos_a_j = pos_a.second + 1;
-            }
-            
-            reserve_line(
-                operation_name, ins->operands,
-                op_start_cycle, operation_duration / 2,
-                pos_a.first, pos_a.second, pos_a.first, new_pos_a_j,
-                line_mode_t::voltage, cond_t::less);
-            
-            // ------------------------------
-            // 2. Qubit lines for second phase
-            // ------------------------------
-            size_t new_pos_a_i = 0;
-            
-            if (instruction_type.compare("measurement_left_up") == 0
-                || instruction_type.compare("measurement_right_up") == 0)
-            {
-                new_pos_a_i = pos_a.first + 1;
-            }
-            else if (instruction_type.compare("measurement_left_down") == 0
-                || instruction_type.compare("measurement_right_down") == 0)
-            {
-                new_pos_a_i = pos_a.first - 1;
-            }
-            
-            reserve_line(
-                operation_name, ins->operands,
-                op_start_cycle + operation_duration / 2, operation_duration / 2,
-                pos_a.first, pos_a.second, new_pos_a_i, pos_a.second,
-                line_mode_t::signal);
-        }
+        available_or_reserve(op_start_cycle, ins, operation_name,
+                operation_type, instruction_type, operation_duration, true);
     }
     
 private:
@@ -610,7 +275,7 @@ private:
                 {
                     if (k == pos_a_i) continue;
 
-                    // TODO: Check QL for isolated qubits in same row/column
+                    // Check QL for isolated qubits in same row/column
                     if (last_crossbar_state->get_count_by_position(k, pos_a_j) == 0
                         && last_crossbar_state->get_count_by_position(k, pos_b_j) != 0)
                     {
@@ -640,7 +305,7 @@ private:
                 {
                     if (k == pos_a_j) continue;
 
-                    // TODO: Check QL for isolated qubits in same row/column
+                    // Check QL for isolated qubits in same row/column
                     if (last_crossbar_state->get_count_by_position(pos_a_i, k) == 0
                         && last_crossbar_state->get_count_by_position(pos_b_i, k) != 0)
                     {
@@ -779,6 +444,306 @@ private:
         my_ql_info->conditions.push_back(my_condition);
         
         qubit_line.insert({op_start_cycle, op_start_cycle + operation_duration, my_ql_info});
+    }
+    
+    bool available_or_reserve(size_t op_start_cycle, ql::gate * ins, std::string & operation_name,
+        std::string & operation_type, std::string & instruction_type, size_t operation_duration,
+        bool reserve)
+    {
+        crossbar_state_t* last_crossbar_state = get_last_crossbar_state(op_start_cycle);
+        std::pair<size_t, size_t> pos_a = last_crossbar_state->get_position_by_site(ins->operands[0]);
+        
+        if (instruction_type.compare("shuttle") == 0)
+        {
+            // Shuttling
+            if (operation_name.compare("shuttle_up") == 0 || operation_name.compare("shuttle_down") == 0)
+            {
+                size_t new_pos_a_i = 0;
+                if (operation_name.compare("shuttle_up") == 0)
+                {
+                    new_pos_a_i = pos_a.first + 1;
+                }
+                else if (operation_name.compare("shuttle_down") == 0)
+                {
+                    new_pos_a_i = pos_a.first - 1;
+                }
+                
+                if (!check_line(
+                    operation_name, ins->operands,
+                    op_start_cycle, operation_duration,
+                    pos_a.first, pos_a.second, new_pos_a_i, pos_a.second,
+                    line_mode_t::voltage, cond_t::less))
+                {
+                    DOUT("    " << name << " resource busy ...");
+                    return false;
+                }
+                
+                // RESERVE
+                if (reserve)
+                {
+                    reserve_line(
+                        operation_name, ins->operands,
+                        op_start_cycle, operation_duration,
+                        pos_a.first, pos_a.second, new_pos_a_i, pos_a.second,
+                        line_mode_t::voltage, cond_t::less);
+                }
+            }
+            else if (operation_name.compare("shuttle_left") == 0 || operation_name.compare("shuttle_right") == 0)
+            {
+                size_t new_pos_a_j = 0;
+                if (operation_name.compare("shuttle_left") == 0)
+                {
+                    new_pos_a_j = pos_a.second - 1;
+                }
+                else if (operation_name.compare("shuttle_right") == 0)
+                {
+                    new_pos_a_j = pos_a.second + 1;
+                }
+                
+                if (!check_line(
+                    operation_name, ins->operands,
+                    op_start_cycle, operation_duration,
+                    pos_a.first, pos_a.second, pos_a.first, new_pos_a_j,
+                    line_mode_t::voltage, cond_t::less))
+                {
+                    DOUT("    " << name << " resource busy ...");
+                    return false;
+                }
+                
+                // RESERVE
+                if (reserve)
+                {
+                    reserve_line(
+                        operation_name, ins->operands,
+                        op_start_cycle, operation_duration,
+                        pos_a.first, pos_a.second, pos_a.first, new_pos_a_j,
+                        line_mode_t::voltage, cond_t::less);
+                }
+            }
+        }
+        else if (instruction_type.compare("one_qubit_gate") == 0)
+        {
+            // One qubit gate
+            size_t new_pos_a_j = 0;
+                
+            // Z, S & T gate by shuttling
+            if (operation_name.rfind("_shuttle") != std::string::npos)
+            {
+                if (operation_name.rfind("_shuttle_left") != std::string::npos)
+                {
+                    new_pos_a_j = pos_a.second - 1;
+                }
+                else if (operation_name.rfind("_shuttle_right") != std::string::npos)
+                {
+                    new_pos_a_j = pos_a.second + 1;
+                }
+                
+                // Shuttle to the next column
+                if (!check_line(
+                    operation_name, ins->operands,
+                    op_start_cycle, operation_duration / 2,
+                    pos_a.first, pos_a.second, pos_a.first, new_pos_a_j,
+                    line_mode_t::voltage, cond_t::less))
+                {
+                    DOUT("    " << name << " resource busy ...");
+                    return false;
+                }
+                
+                // Shuttle back
+                if (!check_line(
+                    operation_name, ins->operands,
+                    op_start_cycle + operation_duration / 2, operation_duration / 2,
+                    pos_a.first, new_pos_a_j, pos_a.first, pos_a.second,
+                    line_mode_t::voltage, cond_t::less))
+                {
+                    DOUT("    " << name << " resource busy ...");
+                    return false;
+                }
+                
+                // RESERVE
+                if (reserve)
+                {
+                    reserve_line(
+                        operation_name, ins->operands,
+                        op_start_cycle, operation_duration / 2,
+                        pos_a.first, pos_a.second, pos_a.first, new_pos_a_j,
+                        line_mode_t::voltage, cond_t::less);
+
+                    reserve_line(
+                        operation_name, ins->operands,
+                        op_start_cycle + operation_duration / 2, operation_duration / 2,
+                        pos_a.first, new_pos_a_j, pos_a.first, pos_a.second,
+                        line_mode_t::voltage, cond_t::less);
+                }
+            }
+            else
+            {
+                // Qubit lines used to make the auxiliary shuttle between waves
+                if (pos_a.second - 1 >= 0 && last_crossbar_state->board_state[pos_a.first][pos_a.second - 1] == 0)
+                {
+                    new_pos_a_j = pos_a.second - 1;
+                }
+                else if (pos_a.second + 1 <= n - 2
+                    && last_crossbar_state->board_state[pos_a.first][pos_a.second + 1] == 0)
+                {
+                    new_pos_a_j = pos_a.second + 1;
+                }
+                else
+                {
+                    // Both sites are empty
+                    DOUT("    " << name << " resource busy ...");
+                    return false;
+                }
+                
+                if (!check_line(
+                    operation_name, ins->operands,
+                    op_start_cycle, operation_duration,
+                    pos_a.first, pos_a.second, pos_a.first, new_pos_a_j,
+                    line_mode_t::voltage, cond_t::less))
+                {
+                    DOUT("    " << name << " resource busy ...");
+                    return false;
+                }
+                
+                // RESERVE
+                if (reserve)
+                {
+                    reserve_line(
+                        operation_name, ins->operands,
+                        op_start_cycle + crossbar_wave_resource_t::WAVE_DURATION_CYCLES,
+                        operation_duration - (crossbar_wave_resource_t::WAVE_DURATION_CYCLES * 2),
+                        pos_a.first, pos_a.second, pos_a.first, new_pos_a_j,
+                        line_mode_t::voltage, cond_t::less);
+                }
+            }
+        }
+        else if (instruction_type.compare("two_qubit_gate") == 0)
+        {
+            // Two qubit gate
+            std::pair<size_t, size_t> pos_b = last_crossbar_state->get_position_by_site(ins->operands[1]);
+            
+            if (operation_name.compare("sqswap") == 0)
+            {
+                if (!check_line(
+                    operation_name, ins->operands,
+                    op_start_cycle, operation_duration,
+                    pos_a.first, pos_a.second, pos_b.first, pos_b.second,
+                    line_mode_t::voltage, cond_t::equal))
+                {
+                    DOUT("    " << name << " resource busy ...");
+                    return false;
+                }
+                
+                // RESERVE
+                if (reserve)
+                {
+                    reserve_line(
+                        operation_name, ins->operands,
+                        op_start_cycle, operation_duration,
+                        pos_a.first, pos_a.second, pos_b.first, pos_b.second,
+                        line_mode_t::voltage, cond_t::equal);
+                }
+            }
+            else if (operation_name.compare("cphase") == 0)
+            {
+                if (!check_line(
+                    operation_name, ins->operands,
+                    op_start_cycle, operation_duration,
+                    pos_a.first, pos_a.second, pos_b.first, pos_b.second,
+                    line_mode_t::voltage, cond_t::equal))
+                {
+                    DOUT("    " << name << " resource busy ...");
+                    return false;
+                }
+                
+                // RESERVE
+                if (reserve)
+                {
+                    reserve_line(
+                        operation_name, ins->operands,
+                        op_start_cycle, operation_duration,
+                        pos_a.first, pos_a.second, pos_b.first, pos_b.second,
+                        line_mode_t::voltage, cond_t::equal);
+                }
+            }
+        }
+        else if (instruction_type.compare("measurement") == 0)
+        {
+            // Measurement
+            
+            // ------------------------------
+            // 1. Qubit lines for first phase
+            // ------------------------------
+            size_t new_pos_a_j = 0;
+            
+            if (instruction_type.compare("measurement_left_up") == 0 || instruction_type.compare("measurement_left_down") == 0)
+            {
+                new_pos_a_j = pos_a.second - 1;
+            }
+            else if (instruction_type.compare("measurement_right_up") == 0
+                || instruction_type.compare("measurement_right_down") == 0)
+            {
+                new_pos_a_j = pos_a.second + 1;
+            }
+            
+            if (!check_line(
+                operation_name, ins->operands,
+                op_start_cycle, operation_duration / 2,
+                pos_a.first, pos_a.second, pos_a.first, new_pos_a_j,
+                line_mode_t::voltage, cond_t::less))
+            {
+                DOUT("    " << name << " resource busy ...");
+                return false;
+            }
+            
+            // RESERVE
+            if (reserve)
+            {
+                reserve_line(
+                    operation_name, ins->operands,
+                    op_start_cycle, operation_duration / 2,
+                    pos_a.first, pos_a.second, pos_a.first, new_pos_a_j,
+                    line_mode_t::voltage, cond_t::less);
+            }
+            
+            // ------------------------------
+            // 2. Qubit lines for second phase
+            // ------------------------------
+            size_t new_pos_a_i = 0;
+            
+            if (instruction_type.compare("measurement_left_up") == 0
+                || instruction_type.compare("measurement_right_up") == 0)
+            {
+                new_pos_a_i = pos_a.first + 1;
+            }
+            else if (instruction_type.compare("measurement_left_down") == 0
+                || instruction_type.compare("measurement_right_down") == 0)
+            {
+                new_pos_a_i = pos_a.first - 1;
+            }
+            
+            if (!check_line(
+                operation_name, ins->operands,
+                op_start_cycle + operation_duration / 2, operation_duration / 2,
+                pos_a.first, pos_a.second, new_pos_a_i, pos_a.second,
+                line_mode_t::signal))
+            {
+                DOUT("    " << name << " resource busy ...");
+                return false;
+            }
+            
+            // RESERVE
+            if (reserve)
+            {
+                reserve_line(
+                    operation_name, ins->operands,
+                    op_start_cycle + operation_duration / 2, operation_duration / 2,
+                    pos_a.first, pos_a.second, new_pos_a_i, pos_a.second,
+                    line_mode_t::signal);
+            }
+        }
+        
+        return true;
     }
 };
 

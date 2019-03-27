@@ -96,11 +96,13 @@ private:
         int m = platform.topology["y_size"];
         int n = platform.topology["x_size"];
         crossbar_state_t* crossbar_state = new crossbar_state_t(m, n);
-        for (json::const_iterator it = platform.topology["positions"].begin(); it != platform.topology["positions"].end(); ++it)
+        for (json::const_iterator it = platform.topology["configuration"].begin();
+            it != platform.topology["configuration"].end(); ++it)
         {
             int key = std::stoi(it.key());
-            std::vector<int> pos = it.value();
-            crossbar_state->add_qubit(pos[0], pos[1], key);
+            std::string type = it.value()["type"];
+            std::vector<int> pos = it.value()["position"];
+            crossbar_state->add_qubit(pos[0], pos[1], key, (type.compare("ancilla") == 0));
         }
         
         for (auto &kernel : kernels)
