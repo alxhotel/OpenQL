@@ -29,6 +29,7 @@
 				"position": [1, 4]
 			}
 		},
+		"form": "plus",
 		"x_size": 5,
 		"y_size": 5,
 		"qubits": [

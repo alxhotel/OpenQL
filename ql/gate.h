@@ -24,6 +24,7 @@
 
 #include <ql/openql.h>
 #include <ql/exception.h>
+#include <ql/options.h>
 
 using json = nlohmann::json;
 
@@ -219,7 +220,7 @@ public:
     std::vector<size_t> creg_operands;
     size_t duration;                         // to do change attribute name "duration" to "duration" (duration is used to describe hardware duration)
     double angle;                            // for arbitrary rotations
-    size_t  cycle;                           // set after scheduling with resulting cycle in which gate was scheduled
+    size_t  cycle = MAX_CYCLE;               // cycle after scheduling; MAX_CYCLE indicates undefined
     virtual instruction_t qasm()       = 0;
 #if OPT_MICRO_CODE
     virtual instruction_t micro_code() = 0;  // to do : deprecated
