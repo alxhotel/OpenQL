@@ -2775,7 +2775,7 @@ private:
         if (platform.instruction_settings.count(id) > 0)
         {
             DOUT("...... extracting operation_name");
-	        if ( !platform.instruction_settings[id]["cc_light_instr"].is_null() )
+	        if (platform.instruction_settings[id].count("cc_light_instr") > 0)
 	        {
 	            operation_name = platform.instruction_settings[id]["cc_light_instr"];
 	        }
@@ -2786,18 +2786,18 @@ private:
             }
 
             DOUT("...... extracting operation_type");
-	        if ( !platform.instruction_settings[id]["type"].is_null() )
+	        if (platform.instruction_settings[id].count("type") > 0)
 	        {
-	            operation_type = platform.instruction_settings[id]["type"];
-	        }
+                operation_type = platform.instruction_settings[id]["type"];
+            }
             else
             {
-	            operation_type = "cc_light_type";
+                operation_type = "cc_light_type";
                 DOUT("...... faking operation_type to " << operation_type);
             }
 
             DOUT("...... extracting instruction_type");
-	        if ( !platform.instruction_settings[id]["cc_light_instr_type"].is_null() )
+	        if (platform.instruction_settings[id].count("cc_light_instr_type") > 0)
 	        {
 	            instruction_type = platform.instruction_settings[id]["cc_light_instr_type"];
 	        }
@@ -2932,8 +2932,38 @@ private:
             selected_node = SelectAvailable(avlist, dir, curr_cycle, platform, rm, success);
             if (!success)
             {
+                // check if there is a deadlock
+                if (avlist.size() > 0)
+                {
+                    for (auto n : avlist)
+                    {
+                        ql::gate* ins = instruction[n];
+                        if ((ql::forward_scheduling == dir && ins->cycle <= curr_cycle)
+                            || (ql::backward_scheduling == dir && curr_cycle <= ins->cycle))
+                        {
+                            // are resources available?
+                            std::string operation_name;
+                            std::string operation_type;
+                            std::string instruction_type;
+                            size_t operation_duration = std::ceil( static_cast<float>(ins->duration) / cycle_time);
+                            GetGateParameters(ins->name, platform, operation_name, operation_type, instruction_type);
+
+                            DOUT("... checking deadlock");
+                            if (rm.has_dead_lock(curr_cycle, ins, operation_name,
+                                operation_type, instruction_type, operation_duration))
+                            {
+                                DOUT("... deadlock detected");
+                                rm.solve_dead_lock(curr_cycle, ins, operation_name,
+                                    operation_type, instruction_type, operation_duration);
+                                DOUT("... deadlock solved");
+                                continue;
+                            }
+                        }
+                    }
+                }
+                
                 // i.e. none from avlist was found suitable to schedule in this cycle
-                AdvanceCurrCycle(dir, curr_cycle); 
+                AdvanceCurrCycle(dir, curr_cycle);
                 // so try again; eventually instrs complete and machine is empty
                 continue;
             }

@@ -31,12 +31,12 @@ public:
     }
     
     crossbar_resource_t(std::string name, scheduling_direction_t dir,
-        std::map<size_t, crossbar_state_t*> crossbar_states_local)
+        std::map<size_t, crossbar_state_t*> & crossbar_states_local)
         : resource_t(name, dir)
     {
         crossbar_states = crossbar_states_local;
-        m = get_first_crossbar_state()->board_state.size();
-        n = get_first_crossbar_state()->board_state[0].size();
+        m = get_first_crossbar_state()->get_y_size();
+        n = get_first_crossbar_state()->get_x_size();
     }
     
     //crossbar_resource_t* clone() const & { return new crossbar_resource_t(*this);}

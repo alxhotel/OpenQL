@@ -154,7 +154,7 @@ public:
                         other_condition->pos_b_i, other_condition->pos_b_j
                     ));
                     
-                    std::cout << "other owner " << (int) other_ql_info->operands[0]  << std::endl << std::flush;
+                    /*std::cout << "other owner " << (int) other_ql_info->operands[0]  << std::endl << std::flush;
                     std::cout << "other owener " << (int) other_ql_info->operands[1]  << std::endl << std::flush;
                     std::cout << "other " << (int) other_condition->line_mode  << std::endl << std::flush;
                     std::cout << "other " << (int) other_condition->less_or_equal  << std::endl << std::flush;
@@ -171,7 +171,7 @@ public:
                     std::cout << "me " << (int) my_condition->pos_b_j  << std::endl << std::flush;
                     
                     std::cout << "SITE " << (int) condition_sites[0]  << std::endl << std::flush;
-                    std::cout << "SITE " << (int) condition_sites[1]  << std::endl << std::flush;
+                    std::cout << "SITE " << (int) condition_sites[1]  << std::endl << std::flush;*/
                     
                     bool this_is_owner = true;
                     
@@ -226,7 +226,7 @@ public:
     Intervals::IntervalTree<size_t, ql_info*> qubit_line;
     
     crossbar_qubit_line_resource_t(const ql::quantum_platform & platform,
-        ql::scheduling_direction_t dir, std::map<size_t, crossbar_state_t*> crossbar_states_local)
+        ql::scheduling_direction_t dir, std::map<size_t, crossbar_state_t*> & crossbar_states_local)
         : crossbar_resource_t("qubit_lines", dir, crossbar_states_local)
     {
         count = (n * 2) - 1;
@@ -340,7 +340,8 @@ private:
             my_ql_info->conditions.push_back(my_condition);
             
             const auto &intervals = qubit_line.findOverlappingIntervals(
-                {op_start_cycle, op_start_cycle + operation_duration}
+                {op_start_cycle, op_start_cycle + operation_duration},
+                false
             );
             
             // Check conditions        
@@ -451,7 +452,7 @@ private:
         bool reserve)
     {
         crossbar_state_t* last_crossbar_state = get_last_crossbar_state(op_start_cycle);
-        std::pair<size_t, size_t> pos_a = last_crossbar_state->get_position_by_site(ins->operands[0]);
+        std::pair<size_t, size_t> pos_a = last_crossbar_state->get_pos_by_site(ins->operands[0]);
         
         if (instruction_type.compare("shuttle") == 0)
         {
@@ -579,12 +580,13 @@ private:
             else
             {
                 // Qubit lines used to make the auxiliary shuttle between waves
-                if (pos_a.second - 1 >= 0 && last_crossbar_state->board_state[pos_a.first][pos_a.second - 1] == 0)
+                if (pos_a.second - 1 >= 0
+                    && last_crossbar_state->get_count_by_position(pos_a.first, pos_a.second - 1) == 0)
                 {
                     new_pos_a_j = pos_a.second - 1;
                 }
                 else if (pos_a.second + 1 <= n - 2
-                    && last_crossbar_state->board_state[pos_a.first][pos_a.second + 1] == 0)
+                    && last_crossbar_state->get_count_by_position(pos_a.first, pos_a.second + 1) == 0)
                 {
                     new_pos_a_j = pos_a.second + 1;
                 }
@@ -597,7 +599,8 @@ private:
                 
                 if (!check_line(
                     operation_name, ins->operands,
-                    op_start_cycle, operation_duration,
+                    op_start_cycle + crossbar_wave_resource_t::WAVE_DURATION_CYCLES,
+                    operation_duration - (crossbar_wave_resource_t::WAVE_DURATION_CYCLES * 2),
                     pos_a.first, pos_a.second, pos_a.first, new_pos_a_j,
                     line_mode_t::voltage, cond_t::less))
                 {
@@ -620,7 +623,7 @@ private:
         else if (instruction_type.compare("two_qubit_gate") == 0)
         {
             // Two qubit gate
-            std::pair<size_t, size_t> pos_b = last_crossbar_state->get_position_by_site(ins->operands[1]);
+            std::pair<size_t, size_t> pos_b = last_crossbar_state->get_pos_by_site(ins->operands[1]);
             
             if (operation_name.compare("sqswap") == 0)
             {

@@ -30,10 +30,10 @@ public:
     Intervals::IntervalTree<size_t, std::string> wave;
     
     crossbar_wave_resource_t(const ql::quantum_platform & platform,
-        ql::scheduling_direction_t dir, std::map<size_t, crossbar_state_t*> crossbar_states_local)
+        ql::scheduling_direction_t dir, std::map<size_t, crossbar_state_t*> & crossbar_states_local)
         : crossbar_resource_t("wave", dir)
     {
-        //AWVE_DURATION_CYCLES = (int) platform.resources["wave"]["wave_duration"] / (int) platform.hardware_settings["cycle_time"];
+       WAVE_DURATION_CYCLES = (int) platform.resources["wave"]["wave_duration"] / (int) platform.hardware_settings["cycle_time"];
     }
     
     crossbar_wave_resource_t* clone() const & { return new crossbar_wave_resource_t(*this);}
@@ -85,7 +85,8 @@ private:
         if (direction == forward_scheduling)
         {
             const auto &intervals = wave.findOverlappingIntervals(
-                {op_start_cycle, op_start_cycle + operation_duration}
+                {op_start_cycle, op_start_cycle + operation_duration},
+                false
             );
             
             for (const auto &interval : intervals)

@@ -37,7 +37,7 @@ public:
     std::vector<Intervals::IntervalTree<size_t, barrier_state_t>> horizontal_barrier;
     
     crossbar_barrier_resource_t(const ql::quantum_platform & platform,
-        ql::scheduling_direction_t dir, std::map<size_t, crossbar_state_t*> crossbar_states_local)
+        ql::scheduling_direction_t dir, std::map<size_t, crossbar_state_t*> & crossbar_states_local)
         : crossbar_resource_t("barrier", dir, crossbar_states_local)
     {
         count = (n - 1);
@@ -72,11 +72,13 @@ private:
     bool check_vertical_barrier(size_t op_start_cycle, size_t operation_duration, size_t index, barrier_state_t new_state)
     {
         std::cout << "Check v barrier " << index << " (" << vertical_barrier.size() << ") " << std::endl << std::flush;
+        std::cout << "from " << op_start_cycle << " to " << op_start_cycle + operation_duration << std::endl << std::flush;
         
         if (index >= 0 && index <= n - 2)
         {
             const auto &intervals = vertical_barrier[index].findOverlappingIntervals(
-                {op_start_cycle, op_start_cycle + operation_duration}
+                {op_start_cycle, op_start_cycle + operation_duration},
+                false
             );
             
             if (direction == forward_scheduling)
@@ -101,11 +103,13 @@ private:
     bool check_horizontal_barrier(size_t op_start_cycle, size_t operation_duration, size_t index, barrier_state_t new_state)
     {
         std::cout << "Check h barrier " << index << " (" << horizontal_barrier.size() << ") " << std::endl << std::flush;
+        std::cout << "from " << op_start_cycle << " to " << op_start_cycle + operation_duration << std::endl << std::flush;
         
         if (index >= 0 && index <= n - 2)
         {
             const auto &intervals = horizontal_barrier[index].findOverlappingIntervals(
-                {op_start_cycle, op_start_cycle + operation_duration}
+                {op_start_cycle, op_start_cycle + operation_duration},
+                false
             );
             
             if (direction == forward_scheduling)
@@ -191,6 +195,9 @@ private:
     {
         if ((int)index >= 0 && index >= 0 && index <= n - 2)
         {
+            std::cout << "reserve v barrier : " << index << " from " << op_start_cycle << " to "
+                    << op_start_cycle + operation_duration << std::endl << std::flush;
+            
             vertical_barrier[index].insert({op_start_cycle, op_start_cycle + operation_duration, new_state});
         }
     }
@@ -199,6 +206,9 @@ private:
     {
         if ((int)index >= 0 && index >= 0 && index <= n - 2)
         {
+            std::cout << "reserve h barrier : " << index << " from " << op_start_cycle << " to "
+                    << op_start_cycle + operation_duration << std::endl << std::flush;
+            
             horizontal_barrier[index].insert({op_start_cycle, op_start_cycle + operation_duration, new_state});
         }
     }
@@ -240,7 +250,7 @@ private:
         bool reserve)
     {
         crossbar_state_t* last_crossbar_state = get_last_crossbar_state(op_start_cycle);
-        std::pair<size_t, size_t> pos_a = last_crossbar_state->get_position_by_site(ins->operands[0]);
+        std::pair<size_t, size_t> pos_a = last_crossbar_state->get_pos_by_site(ins->operands[0]);
         
         if (instruction_type.compare("shuttle") == 0)
         {
@@ -406,18 +416,18 @@ private:
                         // First wave
                        reserve_vertical_barrier(
                            op_start_cycle,
-                           crossbar_wave_resource_t::WAVE_DURATION_CYCLES * 2, i, barrier_state_t::raised);
+                           crossbar_wave_resource_t::WAVE_DURATION_CYCLES, i, barrier_state_t::raised);
                        reserve_horizontal_barrier(
                            op_start_cycle,
-                           crossbar_wave_resource_t::WAVE_DURATION_CYCLES * 2, i, barrier_state_t::raised);
+                           crossbar_wave_resource_t::WAVE_DURATION_CYCLES, i, barrier_state_t::raised);
 
                        // Second wave
                        reserve_vertical_barrier(
                            op_start_cycle + operation_duration - crossbar_wave_resource_t::WAVE_DURATION_CYCLES,
-                           crossbar_wave_resource_t::WAVE_DURATION_CYCLES * 2, i, barrier_state_t::raised);
+                           crossbar_wave_resource_t::WAVE_DURATION_CYCLES, i, barrier_state_t::raised);
                        reserve_horizontal_barrier(
                            op_start_cycle + operation_duration - crossbar_wave_resource_t::WAVE_DURATION_CYCLES,
-                           crossbar_wave_resource_t::WAVE_DURATION_CYCLES * 2, i, barrier_state_t::raised);
+                           crossbar_wave_resource_t::WAVE_DURATION_CYCLES, i, barrier_state_t::raised);
                     }
                 }
                 
@@ -475,18 +485,22 @@ private:
                 // RESERVE
                 if (reserve)
                 {
-                    reserve_vertical_barrier(op_start_cycle, operation_duration,
-                            middle_barrier, barrier_state_t::lowered);
+                    reserve_vertical_barrier(
+                        op_start_cycle + crossbar_wave_resource_t::WAVE_DURATION_CYCLES,
+                        operation_duration - crossbar_wave_resource_t::WAVE_DURATION_CYCLES * 2,
+                        middle_barrier, barrier_state_t::lowered);
 
-                    reserve_border_barrier_rightwards(op_start_cycle, operation_duration,
-                            pos_a.first, middle_barrier, barrier_state_t::raised);
+                    reserve_border_barrier_rightwards(
+                        op_start_cycle + crossbar_wave_resource_t::WAVE_DURATION_CYCLES,
+                        operation_duration - crossbar_wave_resource_t::WAVE_DURATION_CYCLES * 2,
+                        pos_a.first, middle_barrier, barrier_state_t::raised);
                 }
             }
         }
         else if (instruction_type.compare("two_qubit_gate") == 0)
         {
             // SQSWAP
-            std::pair<size_t, size_t> pos_b = last_crossbar_state->get_position_by_site(ins->operands[1]);
+            std::pair<size_t, size_t> pos_b = last_crossbar_state->get_pos_by_site(ins->operands[1]);
             
             if (operation_name.compare("sqswap") == 0)
             {

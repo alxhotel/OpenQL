@@ -33,7 +33,7 @@ public:
     std::vector<size_t> state;
     
     crossbar_qubit_resource_t(const ql::quantum_platform & platform,
-        ql::scheduling_direction_t dir, std::map<size_t, crossbar_state_t*> crossbar_states_local)
+        ql::scheduling_direction_t dir, std::map<size_t, crossbar_state_t*> & crossbar_states_local)
         : crossbar_resource_t("qubits", dir)
     {
         count = platform.qubit_number;

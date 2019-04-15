@@ -133,6 +133,19 @@ public:
         // DOUT("all resources reserved for: " << ins->qasm());
     }
 
+    // check if there is a deadlock between the resources
+    bool has_dead_lock(size_t op_start_cycle, ql::gate * ins, std::string & operation_name,
+        std::string & operation_type, std::string & instruction_type, size_t operation_duration)
+    {
+        return false;
+    }
+    
+    // try to solve the dead lock (if any)
+    void solve_dead_lock(size_t op_start_cycle, ql::gate * ins, std::string & operation_name,
+        std::string & operation_type, std::string & instruction_type, size_t operation_duration)
+    {
+    }
+    
     // destructor destroying deep resource_t's
     // runs before shallow destruction which is done by synthesized resource_manager_t destructor
     ~resource_manager_t()

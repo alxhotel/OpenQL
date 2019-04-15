@@ -50,19 +50,15 @@ public:
     crossbar_resource_manager_t(const ql::quantum_platform & platform, ql::scheduling_direction_t dir)
         : resource_manager_t(platform, dir)
     {
-        crossbar_state_t* initial_crossbar_state = new crossbar_state_t();
+        crossbar_state_t* initial_crossbar_state;
         // Initialize the board state
         if (platform.topology.count("x_size") > 0
             && platform.topology.count("y_size") > 0)
         {
-            for (int i = 0; i < platform.topology["y_size"]; i++)
-            {
-                initial_crossbar_state->board_state[i] = {};
-                for (int j = 0; j < platform.topology["x_size"]; j++)
-                {
-                    initial_crossbar_state->board_state[i][j] = 0;
-                }
-            }
+            initial_crossbar_state = new crossbar_state_t(
+                platform.topology["y_size"],
+                platform.topology["x_size"]
+            );
         }
         else
         {
@@ -177,6 +173,25 @@ public:
             {
                 return it->second;
             }
+        }
+    }
+    
+    bool has_dead_lock(size_t op_start_cycle, ql::gate * ins, std::string & operation_name,
+        std::string & operation_type, std::string & instruction_type, size_t operation_duration)
+    {
+        // TODO
+        return false;
+    }
+    
+    void solve_dead_lock(size_t op_start_cycle, ql::gate * ins, std::string & operation_name,
+        std::string & operation_type, std::string & instruction_type, size_t operation_duration)
+    {
+        // TODO
+        while (this->has_dead_lock(op_start_cycle, ins, operation_name,
+            operation_type, instruction_type, operation_duration))
+        {
+            // Try to solve the deadlock
+            break;
         }
     }
     
