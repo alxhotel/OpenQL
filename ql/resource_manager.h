@@ -53,11 +53,13 @@ public:
 class resource_manager_t
 {
 public:
+    scheduling_direction_t direction;
+    
     std::vector<resource_t*> resource_ptrs;
 
     // constructor needed by mapper::FreeCycle to bridge time from its construction to its Init
     // see the note on the use of constructors and Init functions at the start of mapper.h
-    resource_manager_t()
+    resource_manager_t() : direction(forward_scheduling)
     {
         DOUT("Constructing virgin resouce_manager_t");
     }
@@ -65,7 +67,8 @@ public:
     // backward compatible delegating constructor, only doing forward_scheduling
     resource_manager_t(const ql::quantum_platform & platform) : resource_manager_t(platform, forward_scheduling) {}
 
-    resource_manager_t(const ql::quantum_platform & platform, scheduling_direction_t dir)
+    resource_manager_t(const ql::quantum_platform & plat, scheduling_direction_t dir)
+        : direction(dir)
     {
     }
 
@@ -104,7 +107,7 @@ public:
         return *this;
     }
 
-    bool available(size_t op_start_cycle, ql::gate * ins, std::string & operation_name,
+    virtual bool available(size_t op_start_cycle, ql::gate * ins, std::string & operation_name,
         std::string & operation_type, std::string & instruction_type, size_t operation_duration)
     {
         // COUT("checking availability of resources for: " << ins->qasm());
@@ -121,7 +124,7 @@ public:
         return true;
     }
 
-    void reserve(size_t op_start_cycle, ql::gate * ins, std::string & operation_name,
+    virtual void reserve(size_t op_start_cycle, ql::gate * ins, std::string & operation_name,
         std::string & operation_type, std::string & instruction_type, size_t operation_duration)
     {
         // COUT("reserving resources for: " << ins->qasm());
@@ -132,16 +135,10 @@ public:
         }
         // DOUT("all resources reserved for: " << ins->qasm());
     }
-
-    // check if there is a deadlock between the resources
-    bool has_dead_lock(size_t op_start_cycle, ql::gate * ins, std::string & operation_name,
-        std::string & operation_type, std::string & instruction_type, size_t operation_duration)
-    {
-        return false;
-    }
     
-    // try to solve the dead lock (if any)
-    void solve_dead_lock(size_t op_start_cycle, ql::gate * ins, std::string & operation_name,
+    // tries to solve the dead lock (if any)
+    // returns a list of instructions that solves it
+    virtual void solve_deadlock(size_t op_start_cycle, ql::gate * ins, std::string & operation_name,
         std::string & operation_type, std::string & instruction_type, size_t operation_duration)
     {
     }

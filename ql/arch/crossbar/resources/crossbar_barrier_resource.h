@@ -10,7 +10,7 @@
 
 #include <vector>
 #include <ql/arch/crossbar/crossbar_resource.h>
-#include <ql/arch/crossbar/crossbar_state.h>
+#include <ql/arch/crossbar/crossbar_state_map.h>
 #include <ql/arch/crossbar/resources/interval_tree.h>
 
 #include "crossbar_wave_resource.h"
@@ -37,8 +37,8 @@ public:
     std::vector<Intervals::IntervalTree<size_t, barrier_state_t>> horizontal_barrier;
     
     crossbar_barrier_resource_t(const ql::quantum_platform & platform,
-        ql::scheduling_direction_t dir, std::map<size_t, crossbar_state_t*> & crossbar_states_local)
-        : crossbar_resource_t("barrier", dir, crossbar_states_local)
+        ql::scheduling_direction_t dir, crossbar_state_map_t* crossbar_state_map_local)
+        : crossbar_resource_t("barrier", dir, crossbar_state_map_local)
     {
         count = (n - 1);
         vertical_barrier.resize(count);
@@ -71,8 +71,8 @@ public:
 private:    
     bool check_vertical_barrier(size_t op_start_cycle, size_t operation_duration, size_t index, barrier_state_t new_state)
     {
-        std::cout << "Check v barrier " << index << " (" << vertical_barrier.size() << ") " << std::endl << std::flush;
-        std::cout << "from " << op_start_cycle << " to " << op_start_cycle + operation_duration << std::endl << std::flush;
+        std::cout << "Check v[" << index << "]"
+            << " from " << op_start_cycle << " to " << op_start_cycle + operation_duration << std::endl << std::flush;
         
         if (index >= 0 && index <= n - 2)
         {
@@ -81,19 +81,13 @@ private:
                 false
             );
             
-            if (direction == forward_scheduling)
+            // NOTE: Does not matter the direction of the scheduling
+            for (const auto &interval : intervals)
             {
-                for (const auto &interval : intervals)
+                if (interval.value != new_state)
                 {
-                    if (interval.value != new_state)
-                    {
-                        return false;
-                    }
+                    return false;
                 }
-            }
-            else
-            {
-                // TODO
             }
         }
         
@@ -102,8 +96,8 @@ private:
     
     bool check_horizontal_barrier(size_t op_start_cycle, size_t operation_duration, size_t index, barrier_state_t new_state)
     {
-        std::cout << "Check h barrier " << index << " (" << horizontal_barrier.size() << ") " << std::endl << std::flush;
-        std::cout << "from " << op_start_cycle << " to " << op_start_cycle + operation_duration << std::endl << std::flush;
+        std::cout << "Check h[" << index << "]"
+            << " from " << op_start_cycle << " to " << op_start_cycle + operation_duration << std::endl << std::flush;
         
         if (index >= 0 && index <= n - 2)
         {
@@ -112,19 +106,13 @@ private:
                 false
             );
             
-            if (direction == forward_scheduling)
+            // NOTE: Does not matter the direction of the scheduling
+            for (const auto &interval : intervals)
             {
-                for (const auto &interval : intervals)
+                if (interval.value != new_state)
                 {
-                    if (interval.value != new_state)
-                    {
-                        return false;
-                    }
+                    return false;
                 }
-            }
-            else
-            {
-                // TODO
             }
         }
         
@@ -195,7 +183,7 @@ private:
     {
         if ((int)index >= 0 && index >= 0 && index <= n - 2)
         {
-            std::cout << "reserve v barrier : " << index << " from " << op_start_cycle << " to "
+            std::cout << "Reserve v[" << index << "] from " << op_start_cycle << " to "
                     << op_start_cycle + operation_duration << std::endl << std::flush;
             
             vertical_barrier[index].insert({op_start_cycle, op_start_cycle + operation_duration, new_state});
@@ -206,7 +194,7 @@ private:
     {
         if ((int)index >= 0 && index >= 0 && index <= n - 2)
         {
-            std::cout << "reserve h barrier : " << index << " from " << op_start_cycle << " to "
+            std::cout << "Reserve h[" << index << "] from " << op_start_cycle << " to "
                     << op_start_cycle + operation_duration << std::endl << std::flush;
             
             horizontal_barrier[index].insert({op_start_cycle, op_start_cycle + operation_duration, new_state});
@@ -257,7 +245,7 @@ private:
             // Shuttling
             if (operation_name.compare("shuttle_up") == 0 || operation_name.compare("shuttle_down") == 0)
             {
-                int middle_barrier = 0;
+                size_t middle_barrier = 0;
                 if (operation_name.compare("shuttle_up") == 0)
                 {
                     middle_barrier = pos_a.first;
@@ -295,7 +283,7 @@ private:
             }
             else if (operation_name.compare("shuttle_left") == 0 || operation_name.compare("shuttle_right") == 0)
             {
-                int middle_barrier = 0;
+                size_t middle_barrier = 0;
                 if (operation_name.compare("shuttle_left") == 0)
                 {
                     middle_barrier = pos_a.second - 1;

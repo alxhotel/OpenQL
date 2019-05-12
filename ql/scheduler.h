@@ -2842,7 +2842,7 @@ public:
             {
                 return true;
             }
-            isres = true;;
+            isres = true;
             return false;
         }
         else
@@ -2885,7 +2885,81 @@ public:
         success = false;
         return s;   // fake return value
     }
+    
+    void add_instructon()
+    {
+        // TODO
+    }
+    
+    bool has_deadlock(size_t curr_cycle, ql::scheduling_direction_t dir,
+        std::list<ListDigraph::Node>& avlist, ListDigraph::NodeMap<bool>& scheduled)
+    {
+        // get minimum duration of all available instructions
+        size_t min_duration = ALAP_SINK_CYCLE;
+        for (const auto& n : avlist)
+        {
+            ql::gate* ins = instruction[n];
+            if (ins->duration < min_duration)
+            {
+                min_duration = ins->duration;
+            }
+        }
+        
+        // get the number of scheduled instructions executing in current cycle
+        int executing_ins = 0;
+        for (const auto& entry : node)
+        {
+            ql::gate* ins = entry.first;
+            ListDigraph::Node n = entry.second;
+            size_t op_start_cycle = ins->cycle;
+            size_t operation_duration = std::ceil(static_cast<float>(ins->duration) / cycle_time);
+            
+            // count SOURCE as instruction
+            if ((n == s || ins->type() != ql::gate_type_t::__dummy_gate__)
+                && ins->type() != ql::gate_type_t::__classical_gate__ 
+                && scheduled[n]
+                && curr_cycle < (op_start_cycle + operation_duration) && op_start_cycle < (curr_cycle + min_duration))
+            {
+                executing_ins++;
+            }
+        }
+        
+        // get the number of not schedulable instructions due to resources
+        int problematic_ins = 0;
+        for (const auto& n : avlist)
+        {
+            ql::gate* ins = instruction[n];
+            if ((ql::forward_scheduling == dir && ins->cycle <= curr_cycle)
+                || (ql::backward_scheduling == dir && curr_cycle <= ins->cycle)
+            )
+            {
+                problematic_ins++;
+            }
+        }
+        
+        return (problematic_ins > 0 && executing_ins == 0);
+    }
+    
+    void solve_deadlock(size_t  curr_cycle, ListDigraph::Node n,
+        const ql::quantum_platform& platform, ql::arch::resource_manager_t& rm)
+    {
+        ql::gate* gp = instruction[n];
+        
+        if (n != s && n != t
+            && gp->type() != ql::gate_type_t::__dummy_gate__ 
+            && gp->type() != ql::gate_type_t::__classical_gate__ 
+           )
+        {
+            std::string operation_name;
+            std::string operation_type;
+            std::string instruction_type;
+            size_t operation_duration = std::ceil(static_cast<float>(gp->duration) / cycle_time);
+            GetGateParameters(gp->name, platform, operation_name, operation_type, instruction_type);
 
+            rm.solve_deadlock(curr_cycle, gp, operation_name, operation_type, instruction_type, operation_duration);
+        }
+    }
+    
     // ASAP/ALAP scheduler with RC
     //
     // schedule the circuit that is in the dependence graph
@@ -2916,16 +2990,41 @@ public:
         size_t  curr_cycle;         // current cycle for which instructions are sought
         InitAvailable(avlist, dir, curr_cycle);     // first node (SOURCE/SINK) is made available and curr_cycle set
         set_remaining(dir);         // for each gate, number of cycles until end of schedule
-
+        
         DOUT("... loop over avlist until it is empty");
         while (!avlist.empty())
         {
             bool success;
             ListDigraph::Node   selected_node;
             
+            DOUT(std::string(std::string("Curr cycle ") + std::to_string(curr_cycle)).c_str());
+            
             selected_node = SelectAvailable(avlist, dir, curr_cycle, platform, rm, success);
             if (!success)
             {
+                // check for deadlock
+                if (has_deadlock(curr_cycle, dir, avlist, scheduled))
+                {
+                    // try to solve deadlock with any instruction
+                    ListDigraph::Node n = avlist.front();
+                    solve_deadlock(curr_cycle, n, platform, rm);
+                    
+                    // Test if it worked
+                    SelectAvailable(avlist, dir, curr_cycle, platform, rm, success);
+                    if (!success)
+                    {
+                        EOUT("Can not solve deadlock. Exiting.");
+                        exit(1);
+                    }
+                    else
+                    {
+                        // retry scheduling this cycle
+                        continue;
+                    }
+                }
+                
+                DOUT("Next cycle");
+                
                 // i.e. none from avlist was found suitable to schedule in this cycle
                 AdvanceCurrCycle(dir, curr_cycle); 
                 // so try again; eventually instrs complete and machine is empty

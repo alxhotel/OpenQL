@@ -59,8 +59,9 @@ public:
     /**
      * Schedule ASAP or ALAP based on the availability of resources.
      */
-    static ql::ir::bundles_t schedule_rc(ql::circuit& ckt,
-        const ql::quantum_platform& platform, size_t num_qubits, size_t num_creg = 0)
+    static ql::ir::bundles_t schedule_rc(ql::circuit& ckt, const ql::quantum_platform& platform,
+        crossbar_state_t* initial_crossbar_state, crossbar_state_t* final_crossbar_state,
+        size_t num_qubits, size_t num_creg = 0)
     {
         IOUT("Resource-constraint scheduling of Crossbar instructions ...");
 
@@ -68,15 +69,17 @@ public:
         scheduler.Init(ckt, platform, num_qubits, num_creg);
         ql::ir::bundles_t bundles;
         std::string scheduler_opt = ql::options::get("scheduler");
-
+        
         if (scheduler_opt == "ASAP")
         {
-            crossbar_resource_manager_t rm(platform, forward_scheduling);
+            crossbar_resource_manager_t rm(platform, forward_scheduling, 0,
+                initial_crossbar_state, final_crossbar_state);
             bundles = scheduler.schedule_asap(rm, platform);
         }
         else if (scheduler_opt == "ALAP")
         {
-            crossbar_resource_manager_t rm(platform, backward_scheduling);
+            crossbar_resource_manager_t rm(platform, backward_scheduling, ALAP_SINK_CYCLE,
+                initial_crossbar_state, final_crossbar_state);
             bundles = scheduler.schedule_alap(rm, platform);
         }
         else

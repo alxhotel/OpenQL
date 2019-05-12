@@ -38,8 +38,10 @@ public:
     /**
      * Execute the mapping process
      */
-    void map(std::string prog_name, std::vector<quantum_kernel>& kernels, const ql::quantum_platform& platform)
+    void map(std::string prog_name, std::vector<quantum_kernel>& kernels, ql::quantum_platform& platform)
     {
+        // TODO
+        
         /*for(auto &kernel : kernels)
         {
             // don't trust the cycle fields in the instructions
@@ -72,13 +74,27 @@ public:
     }
     
     /**
+     * Pre-compile the qasm code
+     */
+    void pre_compile(std::string prog_name, std::vector<quantum_kernel>& kernels, ql::quantum_platform& platform)
+    {
+        IOUT("Pre-compiling kernels for Crossbar cQASM");
+        
+        // Crossbar HW params
+        load_hw_settings(platform);
+        
+        // Translate qubits to sites
+        kernels = qubits_to_sites(kernels, platform);
+    }
+    
+    /**
      * Program-level compilation of qasm to crossbar_qasm
      */
     void compile(std::string prog_name, ql::circuit& ckt, ql::quantum_platform& platform)
     {
         EOUT("This compile method is not supported for the Crossbar platform");
     }
-
+    
     /**
      * Compile a list of kernels
      */
@@ -86,17 +102,21 @@ public:
     {
         DOUT("Compiling " << kernels.size() << " kernels to generate Crossbar cQASM ... ");
 
+        // FIX (don't know why): Reverse instructions
+        /*for (auto & kernel : kernels)
+        {
+            ql::circuit & ckt = kernel.c;
+            std::reverse(ckt.begin(), ckt.end());
+        }*/
+        
         // Crossbar HW params
         load_hw_settings(platform);
 
-        // TOOD: Do mapping
+        // Do routing
+        map(prog_name, kernels, platform);
         
-        // map(prog_name, kernels, platform);
-        
-        // Translate qubits to sites
-        kernels = qubits_to_sites(kernels, platform);
-        
-        // TOOD: Do routing
+        crossbar_state_t* initial_crossbar_state = this->get_init_crossbar_state(platform);
+        crossbar_state_t* final_crossbar_state = this->get_final_crossbar_state(initial_crossbar_state, kernels);
         
         std::stringstream qasm_ins_str;
         for (auto &kernel : kernels)
@@ -107,10 +127,14 @@ public:
             if (!ckt.empty())
             {
                 // Schedule with platform resource constraints
-                ql::ir::bundles_t bundles = crossbar_scheduler::schedule_rc(ckt, platform, num_qubits);
+                ql::ir::bundles_t bundles = crossbar_scheduler::schedule_rc(
+                    ckt, platform,
+                    initial_crossbar_state, final_crossbar_state,
+                    num_qubits
+                );
 
                 // Translate sites back to qubits
-                //bundles = sites_to_qubits(bundles, platform);
+                bundles = sites_to_qubits(bundles, platform);
                 
                 // TODO: Decompose instructions to "native instructions"
                 
@@ -133,7 +157,7 @@ private:
      * 
      * Note: this also adds a second site for the dependency graph
      */
-    std::vector<quantum_kernel> qubits_to_sites(std::vector<quantum_kernel> kernels, const ql::quantum_platform& platform)
+    std::vector<quantum_kernel> qubits_to_sites(std::vector<quantum_kernel> kernels, ql::quantum_platform& platform)
     {
         IOUT("Translating qubits to sites");
         
@@ -141,9 +165,16 @@ private:
         crossbar_state_t* crossbar_state = this->get_init_crossbar_state(platform);
         int n = crossbar_state->get_x_size();
         
+        // Set new number of "qubits"
+        platform.qubit_number = crossbar_state->get_x_size() * crossbar_state->get_y_size();
+        
         for (auto &kernel : kernels)
         {
-            ql::circuit& ckt = kernel.c;
+            // Set new number of "qubits"
+            kernel.qubit_count = crossbar_state->get_x_size() * crossbar_state->get_y_size();
+            
+            ql::circuit & ckt = kernel.c;
+            
             for (auto &ins : ckt)
             {
                 std::string op_name = ins->name;
@@ -156,6 +187,8 @@ private:
                 {
                     operands[key] = crossbar_state->get_site_by_qubit(operands[key]);
                 }
+                
+                DOUT(std::string("Converting: ") + op_name + " " + std::to_string(qubit_index) + " -> " + std::to_string(operands[0]));
                 
                 std::vector<size_t> & sites = operands;
                 
@@ -258,7 +291,7 @@ private:
      * Note: this also removes the unnecessary second site added in a previous step.
      * And this translations takes for granted that the scheduler has done good job.
      */
-    ql::ir::bundles_t sites_to_qubits(ql::ir::bundles_t bundles, const ql::quantum_platform& platform)
+    ql::ir::bundles_t sites_to_qubits(ql::ir::bundles_t bundles, ql::quantum_platform& platform)
     {
         IOUT("Translating sites to qubits");
         
@@ -356,19 +389,79 @@ private:
      */
     crossbar_state_t* get_init_crossbar_state(const ql::quantum_platform& platform)
     {
-        int m = platform.topology["y_size"];
-        int n = platform.topology["x_size"];
-        crossbar_state_t* crossbar_state = new crossbar_state_t(m, n);
-        for (json::const_iterator it = platform.topology["init_configuration"].begin();
-            it != platform.topology["init_configuration"].end(); ++it)
+        crossbar_state_t* initial_crossbar_state;
+        
+        // Initialize the board state
+        if (platform.topology.count("x_size") > 0
+            && platform.topology.count("y_size") > 0)
         {
-            int key = std::stoi(it.key());
-            std::string type = it.value()["type"];
-            std::vector<int> pos = it.value()["position"];
-            crossbar_state->add_qubit(pos[0], pos[1], key, (type.compare("ancilla") == 0));
+            initial_crossbar_state = new crossbar_state_t(
+                platform.topology["y_size"],
+                platform.topology["x_size"]
+            );
+        }
+        else
+        {
+            COUT("Error: Grid topology for the crossbar was not defined");
+            throw ql::exception("[x] Error: Grid topology for the crossbar was not defined!", false);
         }
         
-        return crossbar_state;
+        // Initialize the configuration
+        if (platform.topology.count("init_configuration") > 0)
+        {
+            for (json::const_iterator it = platform.topology["init_configuration"].begin();
+                it != platform.topology["init_configuration"].end(); ++it)
+            {
+                int key = std::stoi(it.key());
+                std::string type = it.value()["type"];
+                std::vector<int> value = it.value()["position"];
+                initial_crossbar_state->add_qubit(value[0], value[1], key, (type.compare("ancilla") == 0));
+            }
+        }
+        else
+        {
+            COUT("Error: Qubit init placement for the crossbar were not defined");
+            throw ql::exception("[x] Error: Qubit init placement for the crossbar were not defined!", false);
+        }
+        
+        return initial_crossbar_state;
+    }
+    
+    crossbar_state_t* get_final_crossbar_state(crossbar_state_t* initial_crossbar_state,
+        std::vector<quantum_kernel> kernels)
+    {
+        crossbar_state_t* final_crossbar_state = initial_crossbar_state->clone();
+        for (auto& kernel : kernels)
+        {
+            ql::circuit & ckt = kernel.c;
+            
+            for (auto& ins : ckt)
+            {
+                std::string operation_name = ins->name;
+                std::vector<size_t> & operands = ins->operands;
+                
+                size_t site_index = final_crossbar_state->get_qubit_by_site(operands[0]);
+
+                if (operation_name.compare("shuttle_up") == 0)
+                {
+                    final_crossbar_state->shuttle_up(site_index);
+                }
+                else if (operation_name.compare("shuttle_down") == 0)
+                {
+                    final_crossbar_state->shuttle_down(site_index);
+                }
+                else if (operation_name.compare("shuttle_left") == 0)
+                {
+                    final_crossbar_state->shuttle_left(site_index);
+                }
+                else if (operation_name.compare("shuttle_right") == 0)
+                {
+                    final_crossbar_state->shuttle_right(site_index);
+                }
+            }
+        }
+        
+        return final_crossbar_state;
     }
     
     /**
@@ -396,7 +489,7 @@ private:
         std::string qasm_content("version 1.0\n");
         qasm_content += "# this file has been automatically generated by the OpenQL compiler please do not modify it manually.\n";
         qasm_content += "qubits " + std::to_string(num_qubits) + "\n\n";
-        qasm_content += ".all_kernels";
+        qasm_content += std::string(".all_kernels") + "\n";
         qasm_content += ins_str;
         
         std::ofstream fout;

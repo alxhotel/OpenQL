@@ -130,7 +130,6 @@ public:
         return qubit_number;
     }
 
-
     /**
      * @brief   Find architecture instruction name for a custom gate
      *
@@ -149,7 +148,7 @@ public:
         {
             custom_gate* g = it->second;
             instr_name = g->arch_operation_name;
-            if(instr_name.empty())
+            if (instr_name.empty())
             {
                 FATAL("JSON file: field 'arch_operation_name' not defined for instruction '" << iname << "'");
             }
@@ -161,7 +160,6 @@ public:
         return instr_name;
     }
 
-
     // find settings for custom gate, preventing JSON exceptions
     const json& find_instruction(std::string iname) const
     {
@@ -169,7 +167,6 @@ public:
         if(!JSON_EXISTS(instruction_settings, iname)) FATAL("JSON file: instruction not found: '" << iname << "'");
         return instruction_settings[iname];
     }
-
 
     // find instruction type for custom gate
     std::string find_instruction_type(std::string iname) const

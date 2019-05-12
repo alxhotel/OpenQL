@@ -10,7 +10,7 @@
 
 #include <map>
 #include <ql/arch/crossbar/crossbar_resource.h>
-#include <ql/arch/crossbar/crossbar_state.h>
+#include <ql/arch/crossbar/crossbar_state_map.h>
 
 #include "crossbar_wave_resource.h"
 
@@ -137,12 +137,53 @@ public:
         this->operands = operands;
     }
     
+    bool owns(ql_condition* other_condition)
+    {   
+        for (const auto& cond : this->conditions)
+        {
+            if (cond->less_or_equal == other_condition->less_or_equal
+                && cond->line_mode == other_condition->line_mode)
+            {
+                std::vector<size_t> condition_sites;
+                condition_sites.push_back(crossbar_state->get_site_by_pos(
+                    other_condition->pos_a_i, other_condition->pos_a_j
+                ));
+                condition_sites.push_back(crossbar_state->get_site_by_pos(
+                    other_condition->pos_b_i, other_condition->pos_b_j
+                ));
+                
+                bool same_operands = true;
+                for (size_t site : this->operands)
+                {
+                    if (std::find(condition_sites.begin(), condition_sites.end(), site) == condition_sites.end())
+                    {
+                        same_operands = false;
+                    }
+                }
+                
+                if (same_operands)
+                {
+                    return true;
+                }
+            }
+        }
+        
+        return false;
+    }
+    
     bool has_conflict(ql_info* other_ql_info)
     {
-        for (ql_condition* my_condition : this->conditions)
+        for (auto my_cond_it = this->conditions.begin(); my_cond_it != this->conditions.end(); )
         {
-            for (ql_condition* other_condition : other_ql_info->conditions)
-            {   
+            ql_condition* my_condition = *my_cond_it;
+            bool ereased_my_cond_it = false;
+            
+            for (auto other_cond_it = other_ql_info->conditions.begin();
+                    other_cond_it != other_ql_info->conditions.end(); )
+            {
+                ql_condition* other_condition = *other_cond_it;
+                bool ereased_other_cond_it = false;
+                
                 if (my_condition->has_conflict(other_condition))
                 {
                     // Get conflicting sites
@@ -153,25 +194,6 @@ public:
                     condition_sites.push_back(crossbar_state->get_site_by_pos(
                         other_condition->pos_b_i, other_condition->pos_b_j
                     ));
-                    
-                    /*std::cout << "other owner " << (int) other_ql_info->operands[0]  << std::endl << std::flush;
-                    std::cout << "other owener " << (int) other_ql_info->operands[1]  << std::endl << std::flush;
-                    std::cout << "other " << (int) other_condition->line_mode  << std::endl << std::flush;
-                    std::cout << "other " << (int) other_condition->less_or_equal  << std::endl << std::flush;
-                    std::cout << "other " << (int) other_condition->pos_a_i  << std::endl << std::flush;
-                    std::cout << "other " << (int) other_condition->pos_a_j  << std::endl << std::flush;
-                    std::cout << "other " << (int) other_condition->pos_b_i  << std::endl << std::flush;
-                    std::cout << "other " << (int) other_condition->pos_b_j  << std::endl << std::flush;
-                    
-                    std::cout << "me " << (int) other_condition->line_mode  << std::endl << std::flush;
-                    std::cout << "me " << (int) other_condition->less_or_equal  << std::endl << std::flush;
-                    std::cout << "me " << (int) my_condition->pos_a_i  << std::endl << std::flush;
-                    std::cout << "me " << (int) my_condition->pos_a_j  << std::endl << std::flush;
-                    std::cout << "me " << (int) my_condition->pos_b_i  << std::endl << std::flush;
-                    std::cout << "me " << (int) my_condition->pos_b_j  << std::endl << std::flush;
-                    
-                    std::cout << "SITE " << (int) condition_sites[0]  << std::endl << std::flush;
-                    std::cout << "SITE " << (int) condition_sites[1]  << std::endl << std::flush;*/
                     
                     bool this_is_owner = true;
                     
@@ -199,16 +221,37 @@ public:
                     if (this_is_owner || other_is_owner)
                     {
                         // No conflict
-                        // Because this instruction is the owner of the sites
-                        continue;
+                        // Because for this condition someone is the owner of the conflicting sites
+                        // So the owner has preference over the other one
+                        
+                        // Remove unnecessary conflicting condition
+                        if (this_is_owner)
+                        {
+                            other_cond_it = other_ql_info->conditions.erase(other_cond_it);
+                            ereased_other_cond_it = true;
+                        }
+                        else
+                        {
+                            my_cond_it = this->conditions.erase(my_cond_it);
+                            ereased_my_cond_it = true;
+                            break;
+                        }
                     }
                     else
                     {
                         return true;
                     }
-                    
-                    return true;
                 }
+                
+                if (!ereased_other_cond_it)
+                {
+                    other_cond_it++;
+                }
+            }
+            
+            if (!ereased_my_cond_it)
+            {
+                my_cond_it++;
             }
         }
         
@@ -226,8 +269,8 @@ public:
     Intervals::IntervalTree<size_t, ql_info*> qubit_line;
     
     crossbar_qubit_line_resource_t(const ql::quantum_platform & platform,
-        ql::scheduling_direction_t dir, std::map<size_t, crossbar_state_t*> & crossbar_states_local)
-        : crossbar_resource_t("qubit_lines", dir, crossbar_states_local)
+        ql::scheduling_direction_t dir, crossbar_state_map_t* crossbar_state_map_local)
+        : crossbar_resource_t("qubit_lines", dir, crossbar_state_map_local)
     {
         count = (n * 2) - 1;
     }
@@ -264,100 +307,143 @@ private:
     {
         crossbar_state_t* last_crossbar_state = get_last_crossbar_state(op_start_cycle);
         
-        if (direction == forward_scheduling)
+        ql_info* my_ql_info = new ql_info(last_crossbar_state, operation_name, operands);
+
+        std::vector<ql_condition*> cond_to_check;
+
+        // Add prior checks
+        for (size_t k = 0; k < n; k++)
         {
-            ql_info* my_ql_info = new ql_info(last_crossbar_state, operation_name, operands);
-   
-            // Add prior checks
-            for (size_t k = 0; k < n; k++)
+            if (pos_a_i == pos_b_i)
             {
-                if (pos_a_i == pos_b_i)
-                {
-                    if (k == pos_a_i) continue;
+                if (k == pos_a_i) continue;
 
-                    // Check QL for isolated qubits in same row/column
-                    if (last_crossbar_state->get_count_by_position(k, pos_a_j) == 0
-                        && last_crossbar_state->get_count_by_position(k, pos_b_j) != 0)
-                    {
-                        // Qubit in a_j
-                        ql_condition* my_condition = new ql_condition(
-                            k, pos_a_j, k, pos_b_j, line_mode_t::voltage, cond_t::less
-                        );
-                        my_ql_info->conditions.push_back(my_condition);
-                    }
-                    else if (last_crossbar_state->get_count_by_position(k, pos_a_j) != 0
-                        && last_crossbar_state->get_count_by_position(k, pos_b_j) == 0)
-                    {
-                        // Qubit in b_j
-                        ql_condition* my_condition = new ql_condition(
-                            k, pos_b_j, k, pos_a_j, line_mode_t::voltage, cond_t::less
-                        );
-                        my_ql_info->conditions.push_back(my_condition);
-                    }
-                    else if (last_crossbar_state->get_count_by_position(k, pos_a_j) != 0
-                        && last_crossbar_state->get_count_by_position(k, pos_b_j) != 0)
-                    {
-                        // TODO: Check for adjacent qubits (cphase)
-                        return false;
-                    }
+                // Check QL for isolated qubits in same row/column
+                if (last_crossbar_state->get_count_by_position(k, pos_a_j) == 0
+                    && last_crossbar_state->get_count_by_position(k, pos_b_j) != 0)
+                {
+                    // Qubit in a_j
+                    ql_condition* my_condition = new ql_condition(
+                        k, pos_a_j, k, pos_b_j, line_mode_t::voltage, cond_t::less
+                    );
+                    my_ql_info->conditions.push_back(my_condition);
                 }
-                else
+                else if (last_crossbar_state->get_count_by_position(k, pos_a_j) != 0
+                    && last_crossbar_state->get_count_by_position(k, pos_b_j) == 0)
                 {
-                    if (k == pos_a_j) continue;
+                    // Qubit in b_j
+                    ql_condition* my_condition = new ql_condition(
+                        k, pos_b_j, k, pos_a_j, line_mode_t::voltage, cond_t::less
+                    );
+                    my_ql_info->conditions.push_back(my_condition);
+                }
+                else if (last_crossbar_state->get_count_by_position(k, pos_a_j) != 0
+                    && last_crossbar_state->get_count_by_position(k, pos_b_j) != 0)
+                {
+                    // Check for adjacent qubits (cphase)
+                    DOUT(std::string("Horizontally adjacent qubits at ")
+                        + std::to_string(k) + std::string(", ") + std::to_string(pos_a_j)
+                    );
+                    
+                    ql_condition* my_condition = new ql_condition(
+                        k, pos_a_j, k, pos_b_j, line_mode_t::voltage, cond_t::equal
+                    );
+                    my_ql_info->conditions.push_back(my_condition);
 
-                    // Check QL for isolated qubits in same row/column
-                    if (last_crossbar_state->get_count_by_position(pos_a_i, k) == 0
-                        && last_crossbar_state->get_count_by_position(pos_b_i, k) != 0)
-                    {
-                        // Qubit in a_j
-                        ql_condition* my_condition = new ql_condition(
-                            pos_a_i, k, pos_b_i, k, line_mode_t::voltage, cond_t::less
-                        );
-                        my_ql_info->conditions.push_back(my_condition);
-                    }
-                    else if (last_crossbar_state->get_count_by_position(pos_a_i, k) != 0
-                        && last_crossbar_state->get_count_by_position(pos_b_i, k) == 0)
-                    {
-                        // Qubit in b_j
-                        ql_condition* my_condition = new ql_condition(
-                            pos_b_i, k, pos_a_i, k, line_mode_t::voltage, cond_t::less
-                        );
-                        my_ql_info->conditions.push_back(my_condition);
-                    }
-                    else if (last_crossbar_state->get_count_by_position(pos_a_i, k) != 0
-                        && last_crossbar_state->get_count_by_position(pos_b_i, k) != 0)
-                    {
-                        // TODO: Check for adjacent qubits (sqswap)
-                        return false;
-                    }
+                    cond_to_check.push_back(my_condition);
                 }
             }
-            
-            // Add my current QL
-            ql_condition* my_condition = new ql_condition(
-                pos_a_i, pos_a_j, pos_b_i, pos_b_j, line_mode, less_or_equal
-            );
-            my_ql_info->conditions.push_back(my_condition);
-            
-            const auto &intervals = qubit_line.findOverlappingIntervals(
-                {op_start_cycle, op_start_cycle + operation_duration},
-                false
-            );
-            
-            // Check conditions        
-            for (const auto &interval : intervals)
+            else
             {
-                ql_info* other_ql_info = interval.value;
-                
-                if (my_ql_info->has_conflict(other_ql_info))
+                if (k == pos_a_j) continue;
+
+                // Check QL for isolated qubits in same row/column
+                if (last_crossbar_state->get_count_by_position(pos_a_i, k) == 0
+                    && last_crossbar_state->get_count_by_position(pos_b_i, k) != 0)
                 {
-                    return false;
+                    // Qubit in a_j
+                    ql_condition* my_condition = new ql_condition(
+                        pos_a_i, k, pos_b_i, k, line_mode_t::voltage, cond_t::less
+                    );
+                    my_ql_info->conditions.push_back(my_condition);
+                }
+                else if (last_crossbar_state->get_count_by_position(pos_a_i, k) != 0
+                    && last_crossbar_state->get_count_by_position(pos_b_i, k) == 0)
+                {
+                    // Qubit in b_j
+                    ql_condition* my_condition = new ql_condition(
+                        pos_b_i, k, pos_a_i, k, line_mode_t::voltage, cond_t::less
+                    );
+                    my_ql_info->conditions.push_back(my_condition);
+                }
+                else if (last_crossbar_state->get_count_by_position(pos_a_i, k) != 0
+                    && last_crossbar_state->get_count_by_position(pos_b_i, k) != 0)
+                {
+                    // Check for adjacent qubits (sqswap)
+                    DOUT(std::string("Vertically adjacent qubits at ")
+                        + std::to_string(pos_a_i) + std::string(", ") + std::to_string(k)
+                    );
+
+                    ql_condition* my_condition = new ql_condition(
+                        pos_a_i, k, pos_b_i, k, line_mode_t::voltage, cond_t::equal
+                    );
+                    my_ql_info->conditions.push_back(my_condition);
+
+                    cond_to_check.push_back(my_condition);
                 }
             }
         }
-        else
+
+        // Add my current QL
+        ql_condition* my_condition = new ql_condition(
+            pos_a_i, pos_a_j, pos_b_i, pos_b_j, line_mode, less_or_equal
+        );
+        my_ql_info->conditions.push_back(my_condition);
+
+        const auto &intervals = qubit_line.findOverlappingIntervals(
+            {op_start_cycle, op_start_cycle + operation_duration},
+            false
+        );
+
+        // Check conditions        
+        for (const auto &interval : intervals)
         {
-            // TODO
+            ql_info* other_ql_info = interval.value;
+
+            if (my_ql_info->has_conflict(other_ql_info))
+            {
+                return false;
+            }   
+        }
+
+        // EDGE CASE FOR SQSWAP / CPHASE
+        // Found interval with same condition
+        for (auto it = cond_to_check.begin(); it != cond_to_check.end();)
+        {
+            ql_condition* cond = *it;
+
+            bool erased = false;
+            for (const auto &interval : intervals)
+            {
+                ql_info* other_ql_info = interval.value;
+
+                if (other_ql_info->owns(cond))
+                {
+                    it = cond_to_check.erase(it);
+                    erased = true;
+                    break;
+                }
+            }
+
+            if (!erased)
+            {
+                it++;
+            }
+        }
+
+        if (cond_to_check.size() > 0)
+        {
+            return false;
         }
         
         return true;
@@ -402,8 +488,10 @@ private:
                 else if (last_crossbar_state->get_count_by_position(k, pos_a_j) != 0
                     && last_crossbar_state->get_count_by_position(k, pos_b_j) != 0)
                 {
-                    // TODO: Check for adjacent qubits (cphase)
+                    // Check for adjacent qubits (cphase)
                     
+                    // No need to reserve this
+                    // It should already be reserved by another operation
                 }
             }
             else
@@ -432,8 +520,10 @@ private:
                 else if (last_crossbar_state->get_count_by_position(pos_a_i, k) != 0
                     && last_crossbar_state->get_count_by_position(pos_b_i, k) != 0)
                 {
-                    // TODO: Check for adjacent qubits (sqswap)
+                    // Check for adjacent qubits (sqswap)
                     
+                    // No need to reserve this
+                    // It should already be reserved by another operation
                 }
             }
         }
@@ -459,20 +549,22 @@ private:
             // Shuttling
             if (operation_name.compare("shuttle_up") == 0 || operation_name.compare("shuttle_down") == 0)
             {
-                size_t new_pos_a_i = 0;
+                size_t origin_i = pos_a.first;
+                size_t destination_i = 0;
+                
                 if (operation_name.compare("shuttle_up") == 0)
                 {
-                    new_pos_a_i = pos_a.first + 1;
+                    destination_i = pos_a.first + 1;
                 }
                 else if (operation_name.compare("shuttle_down") == 0)
                 {
-                    new_pos_a_i = pos_a.first - 1;
+                    destination_i = pos_a.first - 1;
                 }
                 
                 if (!check_line(
                     operation_name, ins->operands,
                     op_start_cycle, operation_duration,
-                    pos_a.first, pos_a.second, new_pos_a_i, pos_a.second,
+                    origin_i, pos_a.second, destination_i, pos_a.second,
                     line_mode_t::voltage, cond_t::less))
                 {
                     DOUT("    " << name << " resource busy ...");
@@ -485,26 +577,28 @@ private:
                     reserve_line(
                         operation_name, ins->operands,
                         op_start_cycle, operation_duration,
-                        pos_a.first, pos_a.second, new_pos_a_i, pos_a.second,
+                        origin_i, pos_a.second, destination_i, pos_a.second,
                         line_mode_t::voltage, cond_t::less);
                 }
             }
             else if (operation_name.compare("shuttle_left") == 0 || operation_name.compare("shuttle_right") == 0)
             {
-                size_t new_pos_a_j = 0;
+                size_t origin_j = pos_a.second;
+                size_t destination_j = 0;
+                
                 if (operation_name.compare("shuttle_left") == 0)
                 {
-                    new_pos_a_j = pos_a.second - 1;
+                    destination_j = pos_a.second - 1;
                 }
                 else if (operation_name.compare("shuttle_right") == 0)
                 {
-                    new_pos_a_j = pos_a.second + 1;
+                    destination_j = pos_a.second + 1;
                 }
                 
                 if (!check_line(
                     operation_name, ins->operands,
                     op_start_cycle, operation_duration,
-                    pos_a.first, pos_a.second, pos_a.first, new_pos_a_j,
+                    pos_a.first, origin_j, pos_a.first, destination_j,
                     line_mode_t::voltage, cond_t::less))
                 {
                     DOUT("    " << name << " resource busy ...");
@@ -517,12 +611,12 @@ private:
                     reserve_line(
                         operation_name, ins->operands,
                         op_start_cycle, operation_duration,
-                        pos_a.first, pos_a.second, pos_a.first, new_pos_a_j,
+                        pos_a.first, origin_j, pos_a.first, destination_j,
                         line_mode_t::voltage, cond_t::less);
                 }
             }
         }
-        else if (instruction_type.compare("one_qubit_gate") == 0)
+        else if (instruction_type.compare("single_qubit_gate") == 0)
         {
             // One qubit gate
             size_t new_pos_a_j = 0;

@@ -139,6 +139,47 @@ public:
         this->positions[qubit_index].second++;
     }
     
+    bool equals(crossbar_state_t* other_crossbar_state)
+    {
+        std::map<size_t, std::pair<size_t, size_t>> other_map = other_crossbar_state->positions;
+        for (auto& entry : this->positions)
+        {
+            size_t index = entry.first;
+            
+            if (other_map.find(index) == other_map.end())
+            {
+                return false;
+            }
+            else if (this->positions[index] != other_map[index])
+            {
+                return false;
+            }
+        }
+
+        return true;
+    }
+    
+    void print()
+    {
+        for (size_t k = this->get_y_size(); k > 0; k--)
+        {
+            size_t i = k - 1;
+            for (size_t j = 0; j < this->get_x_size(); j++)
+            {
+                if (this->get_count_by_position(i, j) > 0)
+                {
+                    std::cout << this->get_qubit_by_pos(i,j) << "\t" << std::flush;   
+                }
+                else
+                {
+                    std::cout << "X" << "\t" << std::flush;                    
+                }
+            }
+            
+            std::cout << std::endl << std::flush;
+        }
+    }
+    
 };
 
 }

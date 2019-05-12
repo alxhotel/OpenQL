@@ -20,40 +20,50 @@ typedef std::vector<std::string> eqasm_t;
 
 namespace ql
 {
-   class quantum_platform;
+class quantum_platform;
 
-   /**
-    * eqasm compiler interface
+/**
+ * eqasm compiler interface
+ */
+class eqasm_compiler
+{
+public:
+    eqasm_t eqasm_code;
+
+public:
+
+    /**
+     * Pre-processes the code before creating the graph dependency
+     */
+    virtual void pre_compile(std::string prog_name, std::vector<quantum_kernel>& kernels, ql::quantum_platform& plat)
+    {
+
+    }
+    
+    /*
+    * compile must be implemented by all compilation backends.
+    * compiles a single (fused) circuit
     */
-   class eqasm_compiler
-   {
-      public:
-         eqasm_t eqasm_code;
-
-      public:
+    //	 virtual void compile(std::string prog_name, ql::circuit& c, ql::quantum_platform& plat) = 0;
 
     /*
-	  * compile must be implemented by all compilation backends.
-    * compiles a single (fused) circuit
-	  */
-//	 virtual void compile(std::string prog_name, ql::circuit& c, ql::quantum_platform& plat) = 0;
-
-   /*
-   * compiles multiple kernels to a single eQASM
-   */
-   virtual void compile(std::string prog_name, std::vector<quantum_kernel> kernels, const ql::quantum_platform& plat)
-   {
-
-   }
-
-	 /**
-	  * write eqasm code to file/stdout
-	  */
-	 virtual void write_eqasm(std::string file_name="")
+    * compiles multiple kernels to a single eQASM
+    */
+    virtual void compile(std::string prog_name, std::vector<quantum_kernel> kernels, const ql::quantum_platform& plat)
     {
-       if (eqasm_code.empty())
+
+    }
+
+    /**
+     * write eqasm code to file/stdout
+     */
+    virtual void write_eqasm(std::string file_name = "")
+    {
+       if (eqasm_code.empty()) {
           return;
-       if (file_name=="")
+       }
+       
+       if (file_name == "")
        {
           println("[c] eqasm code (" << eqasm_code.size() << " lines) :");
           for (std::string l : eqasm_code)
@@ -70,18 +80,20 @@ namespace ql
                 file << l << std::endl;
              file.close();
           }
-          else 
+          else
+          {
              EOUT("opening file '" << file_name << "' !");
+          }
        }
     }
 
-	 /**
-	  * write traces
-	  */
-	 virtual void write_traces(std::string file_name="")
-	 {
-	 }
-   };
+    /**
+     * write traces
+     */
+    virtual void write_traces(std::string file_name = "")
+    {
+    }
+};
 }
 
 #endif // QL_EQASM_COMPILER_H
