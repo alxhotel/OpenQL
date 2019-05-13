@@ -29,14 +29,21 @@ namespace ql
           opt_name2opt_val["log_level"] = "LOG_NOTHING";
           opt_name2opt_val["output_dir"] = "test_output";
           opt_name2opt_val["optimize"] = "no";
-          opt_name2opt_val["use_default_gates"] = "yes";
-          opt_name2opt_val["optimize"] = "no";
-          opt_name2opt_val["decompose_toffoli"] = "no";
+          opt_name2opt_val["scheduler_post179"] = "yes";
           opt_name2opt_val["scheduler"] = "ALAP";
           opt_name2opt_val["scheduler_uniform"] = "no";
-          opt_name2opt_val["scheduler_commute"] = "no";
-          opt_name2opt_val["scheduler_post179"] = "yes";
-
+          opt_name2opt_val["scheduler_commute"] = "yes";
+          opt_name2opt_val["use_default_gates"] = "no";
+          opt_name2opt_val["optimize"] = "no";
+          opt_name2opt_val["decompose_toffoli"] = "no";
+          opt_name2opt_val["mapper"] = "no";
+          opt_name2opt_val["mapinitone2one"] = "yes";
+          opt_name2opt_val["initialplace"] = "no";
+          opt_name2opt_val["mapusemoves"] = "yes";
+          opt_name2opt_val["maptiebreak"] = "random";
+          opt_name2opt_val["mapdecomposer"] = "yes";
+          opt_name2opt_val["mappathselect"] = "all";
+          opt_name2opt_val["maplookahead"] = "noroutingfirst";
 
           // add options with default values and list of possible values
           app->add_set_ignore_case("--log_level", opt_name2opt_val["log_level"], 
@@ -49,6 +56,15 @@ namespace ql
           app->add_set_ignore_case("--use_default_gates", opt_name2opt_val["use_default_gates"], {"yes", "no"}, "Use default gates or not", true);
           app->add_set_ignore_case("--optimize", opt_name2opt_val["optimize"], {"yes", "no"}, "optimize or not", true);
           app->add_set_ignore_case("--decompose_toffoli", opt_name2opt_val["decompose_toffoli"], {"no", "NC", "MA"}, "Type of decomposition used for toffoli", true);
+
+          app->add_set_ignore_case("--mapper", opt_name2opt_val["mapper"], {"no", "base", "baserc", "minextend", "minextendrc", "minboundederror"}, "Mapper heuristic", true);
+          app->add_set_ignore_case("--mapinitone2one", opt_name2opt_val["mapinitone2one"], {"no", "yes"}, "Initialize mapping of virtual qubits one to one to real qubits", true);
+          app->add_set_ignore_case("--initialplace", opt_name2opt_val["initialplace"], {"no","yes","1s","10s","1m","10m","1h","1sx","10sx","1mx","10mx","1hx"}, "Initialplace qubits before mapping", true);
+          app->add_set_ignore_case("--mapusemoves", opt_name2opt_val["mapusemoves"], {"no", "yes", "0","1","2","3","4","5","6","7","8","9","10","11","12","13","14","15","16","17","18","19","20",}, "Use unused qubit to move thru", true);
+          app->add_set_ignore_case("--maptiebreak", opt_name2opt_val["maptiebreak"], {"first", "last", "random"}, "Tie break method", true);
+          app->add_set_ignore_case("--mapdecomposer", opt_name2opt_val["mapdecomposer"], {"no", "yes"}, "Decompose after mapper", true);
+          app->add_set_ignore_case("--mappathselect", opt_name2opt_val["mappathselect"], {"all", "borders"}, "Which paths: all or borders", true);
+          app->add_set_ignore_case("--maplookahead", opt_name2opt_val["maplookahead"], {"no", "critical", "noroutingfirst", "all"}, "Strategy wrt selecting next gate(s) to map", true);
       }
 
       void print_current_values()
@@ -56,8 +72,17 @@ namespace ql
           std::cout << "optimize: " << opt_name2opt_val["optimize"] << std::endl
                     << "scheduler: " << opt_name2opt_val["scheduler"] << std::endl
                     << "scheduler_uniform: " << opt_name2opt_val["scheduler_uniform"] << std::endl
+                    << "mapper: "           << opt_name2opt_val["mapper"] << std::endl
+                    << "mapinitone2one: "   << opt_name2opt_val["mapinitone2one"] << std::endl
+                    << "initialplace: "     << opt_name2opt_val["initialplace"] << std::endl
+                    << "mapusemoves: "      << opt_name2opt_val["mapusemoves"] << std::endl
+                    << "maptiebreak: "      << opt_name2opt_val["maptiebreak"] << std::endl
+                    << "mapdecomposer: "    << opt_name2opt_val["mapdecomposer"] << std::endl
+                    << "mappathselect: "    << opt_name2opt_val["mappathselect"] << std::endl
+                    << "maplookahead: "     << opt_name2opt_val["maplookahead"] << std::endl
                     << "scheduler_post179: " << opt_name2opt_val["scheduler_post179"] << std::endl
                     << "scheduler_commute: " << opt_name2opt_val["scheduler_uniform"] << std::endl;
+	  ;
       }
 
       void help()

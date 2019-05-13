@@ -123,7 +123,7 @@ public:
         weight[arc] = std::ceil( static_cast<float>(instruction[srcNode]->duration) / cycle_time);
         cause[arc] = operand;
         depType[arc] = deptype;
-        DOUT("... dep " << name[srcNode] << " -> " << name[tgtNode] << " (opnd=" << operand << ", dep=" << DepTypesNames[deptype] << ")");
+        // DOUT("... dep " << name[srcNode] << " -> " << name[tgtNode] << " (opnd=" << operand << ", dep=" << DepTypesNames[deptype] << ")");
     }
 
     // fill the dependence graph ('graph') with nodes from the circuit and adding arcs for their dependences
@@ -176,7 +176,7 @@ public:
         {
             // add dummy source node
             ListDigraph::Node srcNode = graph.addNode();
-            instruction[srcNode] = new ql::SOURCE();
+            instruction[srcNode] = new ql::SOURCE();    // so SOURCE is defined as instruction[s], not unique in itself
             node[instruction[srcNode]] = srcNode;
             name[srcNode] = instruction[srcNode]->qasm();
             s=srcNode;
@@ -257,20 +257,14 @@ public:
             }
 
             // each type of gate has a different 'signature' of events; switch out to each one
-
-            // TODO: define signature in .json file similar to how gcc defines instructions
-            // and then have a signature interpreter here; then we don't have this long if-chain
-            // and, more importantly, we don't have the knowledge of particular gates here;
-            // the default signature would be that of a default gate, modifying each qubit operand;
-            // that also solves
             if(ins->name == "measure")
             {
-                DOUT(". considering " << name[consNode] << " as measure");
+                // DOUT(". considering " << name[consNode] << " as measure");
                 // Read+Write each qubit operand + Write corresponding creg
                 auto operands = ins->operands;
                 for( auto operand : operands )
                 {
-                    DOUT(".. Operand: " << operand);
+                    // DOUT(".. Operand: " << operand);
                     addDep(LastWriter[operand], consID, WAW, operand);
                     for(auto & readerID : LastReaders[operand])
                     {
@@ -288,7 +282,7 @@ public:
                 ql::measure * mins = (ql::measure*)ins;
                 for( auto operand : mins->creg_operands )
                 {
-                    DOUT(".. Operand: " << operand);
+                    // DOUT(".. Operand: " << operand);
                     addDep(LastWriter[qubit_count+operand], consID, WAW, operand);
                     for(auto & readerID : LastReaders[qubit_count+operand])
                     {
@@ -317,14 +311,14 @@ public:
             }
             else if(ins->name == "display")
             {
-                DOUT(". considering " << name[consNode] << " as display");
+                // DOUT(". considering " << name[consNode] << " as display");
                 // no operands, display all qubits and cregs
                 // Read+Write each operand
                 std::vector<size_t> qubits(qubit_creg_count);
                 std::iota(qubits.begin(), qubits.end(), 0);
                 for( auto operand : qubits )
                 {
-                    DOUT(".. Operand: " << operand);
+                    // DOUT(".. Operand: " << operand);
                     addDep(LastWriter[operand], consID, WAW, operand);
                     for(auto & readerID : LastReaders[operand])
                     {
@@ -352,12 +346,12 @@ public:
             }
             else if(ins->type() == ql::gate_type_t::__classical_gate__)
             {
-                DOUT(". considering " << name[consNode] << " as classical gate");
+                // DOUT(". considering " << name[consNode] << " as classical gate");
                 std::vector<size_t> all_operands(qubit_creg_count);
                 std::iota(all_operands.begin(), all_operands.end(), 0);
                 for( auto operand : all_operands )
                 {
-                    DOUT(".. Operand: " << operand);
+                    // DOUT(".. Operand: " << operand);
                     addDep(LastWriter[operand], consID, WAW, operand);
                     for(auto & readerID : LastReaders[operand])
                     {
@@ -386,13 +380,13 @@ public:
             else if (  ins->name == "cnot"
                     )
             {
-                DOUT(". considering " << name[consNode] << " as cnot");
+                // DOUT(". considering " << name[consNode] << " as cnot");
                 // CNOTs Read the first operands, and Ds the second operand
                 size_t operandNo=0;
                 auto operands = ins->operands;
                 for( auto operand : operands )
                 {
-                    DOUT(".. Operand: " << operand);
+                    // DOUT(".. Operand: " << operand);
                     if( operandNo == 0)
                     {
                         addDep(LastWriter[operand], consID, RAW, operand);
@@ -473,14 +467,14 @@ public:
                     || ins->name == "cphase"
                     )
             {
-                DOUT(". considering " << name[consNode] << " as cz");
+                // DOUT(". considering " << name[consNode] << " as cz");
                 // CZs Read all operands for post179
                 // CZs Read all operands and write last one for pre179 
                 size_t operandNo=0;
                 auto operands = ins->operands;
                 for( auto operand : operands )
                 {
-                    DOUT(".. Operand: " << operand);
+                    // DOUT(".. Operand: " << operand);
                     if (ql::options::get("scheduler_post179") == "no")
                     {
                         addDep(LastWriter[operand], consID, RAW, operand);
@@ -546,14 +540,14 @@ public:
                     // before implementing it, check whether all commutativity on Reads above hold for this Control Unitary
                     )
             {
-                DOUT(". considering " << name[consNode] << " as Control Unitary");
+                // DOUT(". considering " << name[consNode] << " as Control Unitary");
                 // Control Unitaries Read all operands, and Write the last operand
                 size_t operandNo=0;
                 auto operands = ins->operands;
                 size_t op_count = operands.size();
                 for( auto operand : operands )
                 {
-                    DOUT(".. Operand: " << operand);
+                    // DOUT(".. Operand: " << operand);
                     addDep(LastWriter[operand], consID, RAW, operand);
                     if (ql::options::get("scheduler_post179") == "no"
                     ||  ql::options::get("scheduler_commute") == "no")
@@ -607,13 +601,13 @@ public:
 #endif  // HAVEGENERALCONTROLUNITARIES
             else
             {
-                DOUT(". considering " << name[consNode] << " as general quantum gate");
+                // DOUT(". considering " << name[consNode] << " as general quantum gate");
                 // general quantum gate, Read+Write on each operand
                 size_t operandNo=0;
                 auto operands = ins->operands;
                 for( auto operand : operands )
                 {
-                    DOUT(".. Operand: " << operand);
+                    // DOUT(".. Operand: " << operand);
                     addDep(LastWriter[operand], consID, WAW, operand);
                     for(auto & readerID : LastReaders[operand])
                     {
@@ -644,7 +638,7 @@ public:
 	        // add dummy target node
 	        ListDigraph::Node consNode = graph.addNode();
 	        int consID = graph.id(consNode);
-	        instruction[consNode] = new ql::SINK();
+	        instruction[consNode] = new ql::SINK();    // so SINK is defined as instruction[t], not unique in itself
 	        node[instruction[consNode]] = consNode;
 	        name[consNode] = instruction[consNode]->qasm();
 	        t=consNode;
@@ -665,7 +659,7 @@ public:
 	        std::iota(qubits.begin(), qubits.end(), 0);
 	        for( auto operand : qubits )
 	        {
-	            DOUT(".. Operand: " << operand);
+	            // DOUT(".. Operand: " << operand);
 	            addDep(LastWriter[operand], consID, WAW, operand);
 	            for(auto & readerID : LastReaders[operand])
 	            {
@@ -2119,6 +2113,7 @@ private:
 */
 
 
+public:
 // use MAX_CYCLE for absolute upperbound on cycle value
 // use ALAP_SINK_CYCLE for initial cycle given to SINK in ALAP;
 // the latter allows for some growing room when doing latency compensation/buffer-delay insertion
@@ -2688,9 +2683,9 @@ private:
     // update (through MakeAvailable) the cycle attribute of the nodes made available
     // because from then on that value is compared to the curr_cycle to check
     // whether a node has completed execution and thus is available for scheduling in curr_cycle
-    void TakeAvailable(ListDigraph::Node n, std::list<ListDigraph::Node>& avlist, ListDigraph::NodeMap<bool> & scheduled, ql::scheduling_direction_t dir)
+    void TakeAvailable(ListDigraph::Node n, std::list<ListDigraph::Node>& avlist, std::map<ql::gate*,bool> & scheduled, ql::scheduling_direction_t dir)
     {
-        scheduled[n] = true;
+        scheduled[instruction[n]] = true;
         avlist.remove(n);
 
         if (ql::forward_scheduling == dir)
@@ -2702,7 +2697,7 @@ private:
                 for (ListDigraph::InArcIt predArc(graph,succNode); predArc != INVALID; ++predArc)
                 {
                     ListDigraph::Node predNode = graph.source(predArc);
-                    if (!scheduled[predNode])
+                    if (!scheduled[instruction[predNode]])
                     {
                         schedulable = false;
                         break;
@@ -2723,7 +2718,7 @@ private:
                 for (ListDigraph::OutArcIt succArc(graph,predNode); succArc != INVALID; ++succArc)
                 {
                     ListDigraph::Node succNode = graph.target(succArc);
-                    if (!scheduled[succNode])
+                    if (!scheduled[instruction[succNode]])
                     {
                         schedulable = false;
                         break;
@@ -2824,7 +2819,6 @@ private:
             if ( n == s || n == t
                 || gp->type() == ql::gate_type_t::__dummy_gate__ 
                 || gp->type() == ql::gate_type_t::__classical_gate__ 
-                || gp->type() == ql::gate_type_t::__wait_gate__ 
                )
             {
                 return true;
@@ -2897,8 +2891,8 @@ private:
     {
         DOUT("Scheduling " << (ql::forward_scheduling == dir?"ASAP":"ALAP") << " with RC ...");
 
-        // scheduled[n] :=: whether node n has been scheduled, init all false
-        ListDigraph::NodeMap<bool>      scheduled(graph);
+        // scheduled[gp] :=: whether gate *gp has been scheduled, init all false
+        std::map<ql::gate*,bool>    scheduled;
         // avlist :=: list of schedulable nodes, initially (see below) just s or t
         std::list<ListDigraph::Node>    avlist;
 
@@ -2907,7 +2901,7 @@ private:
         DOUT("... initialization");
         for (ListDigraph::NodeIt n(graph); n != INVALID; ++n)
         {
-            scheduled[n] = false;   // none were scheduled
+            scheduled[instruction[n]] = false;   // none were scheduled, including SOURCE/SINK
         }
         size_t  curr_cycle;         // current cycle for which instructions are sought
         InitAvailable(avlist, dir, curr_cycle);     // first node (SOURCE/SINK) is made available and curr_cycle set
@@ -2936,7 +2930,6 @@ private:
                 && selected_node != t
                 && gp->type() != ql::gate_type_t::__dummy_gate__ 
                 && gp->type() != ql::gate_type_t::__classical_gate__ 
-                && gp->type() != ql::gate_type_t::__wait_gate__ 
                )
             {
                 std::string operation_name;
