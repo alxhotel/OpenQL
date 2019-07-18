@@ -606,7 +606,7 @@ public:
                 size_t operandNo=0;
                 auto operands = ins->operands;
                 for( auto operand : operands )
-                {
+                { 
                     // DOUT(".. Operand: " << operand);
                     addDep(LastWriter[operand], consID, WAW, operand);
                     for(auto & readerID : LastReaders[operand])

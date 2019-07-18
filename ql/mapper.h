@@ -1,4 +1,4 @@
-//#define INITIALPLACE 1
+#define INITIALPLACE 1
 /**
  * @file   mapper.h
  * @date   06/2018 - now
@@ -1145,12 +1145,12 @@ void AddSwap(size_t r0, size_t r1)
     DOUT("... adding/trying swap(q" << r0 << ",q" << r1 << ") ...");
     v2r.PrintReal("... adding swap/move", r0, r1);
 
-    if (v2r.GetRs(r0)!=rs_hasstate && v2r.GetRs(r1)!=rs_hasstate)
+    /*if (v2r.GetRs(r0)!=rs_hasstate && v2r.GetRs(r1)!=rs_hasstate)
     {
         DOUT("... no state in both operand of intended swap/move; don't add swap/move gates");
         v2r.Swap(r0,r1);
         return;
-    }
+    }*/
 
     std::string mapusemovesopt = ql::options::get("mapusemoves");
     if ("no" != mapusemovesopt && (v2r.GetRs(r0)!=rs_hasstate || v2r.GetRs(r1)!=rs_hasstate))
@@ -1160,8 +1160,8 @@ void AddSwap(size_t r0, size_t r1)
             // interchange r0 and r1, so that r1 (right-hand operand of move) will be the state-less one
             size_t  tmp = r1; r1 = r0; r0 = tmp;
         }
-        MapperAssert (v2r.GetRs(r0)==rs_hasstate);    // and r0 will be the one with state
-        MapperAssert (v2r.GetRs(r1)!=rs_hasstate);    // and r1 will be the one without state (rs_nostate || rs_inited)
+        //MapperAssert (v2r.GetRs(r0)==rs_hasstate);    // and r0 will be the one with state
+        //MapperAssert (v2r.GetRs(r1)!=rs_hasstate);    // and r1 will be the one without state (rs_nostate || rs_inited)
 
         // first (optimistically) create the move circuit and add it to circ
         created = new_gate("move_real", {r0,r1}, circ);    // gates implementing move returned in circ
@@ -1975,6 +1975,9 @@ void InitNbs()
         }
 
         nbs[qs].push_back(qd);
+        
+        // DUP
+        nbs[qd].push_back(qs);
     }
 }
 
@@ -3340,7 +3343,7 @@ void Map(ql::quantum_kernel& kernel)
     v2r.Print("After heuristics");
 
     std::string mapdecomposeropt = ql::options::get("mapdecomposer");
-    if("yes" == mapdecomposeropt)
+    if (mapdecomposeropt == "yes")
     {
         Decomposer(kernel.c);   // decompose to primitives as specified in the config file
     }

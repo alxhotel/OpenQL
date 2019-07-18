@@ -4,7 +4,7 @@
  * @author Imran Ashraf
  * @date   09/2018
  * @author Hans van Someren
- * @brief  Resource mangement for cc light platform
+ * @brief  Resource management
  */
 
 #ifndef QL_RESOURCE_MANAGER_H
@@ -15,19 +15,15 @@
 
 namespace ql
 {
-    typedef enum {
-        forward_scheduling = 0,
-        backward_scheduling = 1
-    } scheduling_direction_t;
+typedef enum {
+    forward_scheduling = 0,
+    backward_scheduling = 1
+} scheduling_direction_t;
 
-    namespace arch
-    {
-        class resource_t;
-        class resource_manager_t;
-    }
-}
+namespace arch
+{
 
-class ql::arch::resource_t
+class resource_t
 {
 public:
     std::string name;
@@ -36,7 +32,7 @@ public:
 
     resource_t(std::string n, scheduling_direction_t dir) : name(n), direction(dir)
     {
-        DOUT("constructing resource: " << n << " for direction (0:fwd,1:bwd): " << dir);
+        DOUT("constructing resource: " << n << " for direction (0:fwd, 1:bwd): " << dir);
     }
 
     virtual bool available(size_t op_start_cycle, ql::gate * ins, std::string & operation_name,
@@ -54,15 +50,16 @@ public:
     }
 };
 
-class ql::arch::resource_manager_t
+class resource_manager_t
 {
 public:
-
+    scheduling_direction_t direction;
+    
     std::vector<resource_t*> resource_ptrs;
 
     // constructor needed by mapper::FreeCycle to bridge time from its construction to its Init
     // see the note on the use of constructors and Init functions at the start of mapper.h
-    resource_manager_t()
+    resource_manager_t() : direction(forward_scheduling)
     {
         DOUT("Constructing virgin resouce_manager_t");
     }
@@ -70,7 +67,8 @@ public:
     // backward compatible delegating constructor, only doing forward_scheduling
     resource_manager_t(const ql::quantum_platform & platform) : resource_manager_t(platform, forward_scheduling) {}
 
-    resource_manager_t(const ql::quantum_platform & platform, scheduling_direction_t dir)
+    resource_manager_t(const ql::quantum_platform & plat, scheduling_direction_t dir)
+        : direction(dir)
     {
     }
 
@@ -109,7 +107,7 @@ public:
         return *this;
     }
 
-    bool available(size_t op_start_cycle, ql::gate * ins, std::string & operation_name,
+    virtual bool available(size_t op_start_cycle, ql::gate * ins, std::string & operation_name,
         std::string & operation_type, std::string & instruction_type, size_t operation_duration)
     {
         // COUT("checking availability of resources for: " << ins->qasm());
@@ -126,7 +124,7 @@ public:
         return true;
     }
 
-    void reserve(size_t op_start_cycle, ql::gate * ins, std::string & operation_name,
+    virtual void reserve(size_t op_start_cycle, ql::gate * ins, std::string & operation_name,
         std::string & operation_type, std::string & instruction_type, size_t operation_duration)
     {
         // COUT("reserving resources for: " << ins->qasm());
@@ -137,7 +135,14 @@ public:
         }
         // DOUT("all resources reserved for: " << ins->qasm());
     }
-
+    
+    // tries to solve the dead lock (if any)
+    // returns a list of instructions that solves it
+    virtual void solve_deadlock(size_t op_start_cycle, ql::gate * ins, std::string & operation_name,
+        std::string & operation_type, std::string & instruction_type, size_t operation_duration)
+    {
+    }
+    
     // destructor destroying deep resource_t's
     // runs before shallow destruction which is done by synthesized resource_manager_t destructor
     ~resource_manager_t()
@@ -150,5 +155,7 @@ public:
     }
 };
 
-#endif // QL_RESOURCE_MANAGER_H
+}
+}
 
+#endif // QL_RESOURCE_MANAGER_H

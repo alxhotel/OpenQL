@@ -19,6 +19,7 @@
 #include <ql/arch/cc_light/cc_light_eqasm_compiler.h>
 #include <ql/arch/quantumsim_eqasm_compiler.h>
 #include <ql/arch/cc/eqasm_backend_cc.h>
+#include <ql/arch/crossbar/crossbar_qasm_compiler.h>
 
 static unsigned long phi_node_count = 0;
 
@@ -77,6 +78,10 @@ class quantum_program
             else if (eqasm_compiler_name == "quantumsim_compiler" )
             {
                 backend_compiler = new ql::arch::quantumsim_eqasm_compiler();
+            }
+            else if (eqasm_compiler_name == "crossbar_compiler" )
+            {
+                backend_compiler = new ql::arch::crossbar::crossbar_qasm_compiler();
             }
             else
             {
@@ -488,6 +493,12 @@ class quantum_program
          IOUT("writing un-scheduled qasm to '" << ss_qasm.str() << "' ...");
          ql::utils::write_file(ss_qasm.str(), s);
 
+         // Pre-compile
+         if (backend_compiler != NULL)
+         {
+            backend_compiler->pre_compile(name, kernels, platform);
+         }
+         
          schedule();
 
          if (backend_compiler == NULL)

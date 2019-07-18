@@ -21,7 +21,6 @@
 
 #include<lemon/config.h>
 
-
 #ifdef LEMON_HAVE_GLPK
 #include <lemon/glpk.h>
 #elif LEMON_HAVE_CPLEX

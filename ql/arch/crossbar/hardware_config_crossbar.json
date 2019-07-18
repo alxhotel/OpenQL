@@ -1,0 +1,384 @@
+{
+	"eqasm_compiler" : "crossbar_compiler",
+
+	"hardware_settings": {
+		"qubit_number": 25,
+		"cycle_time" : 10
+	},
+
+	"resources": {
+		"barriers": {},
+		"qubit_lines": {},
+		"wave": {
+			"wave_duration": 10
+		}
+	},
+
+	"topology": {
+		"init_configuration": {
+			"1": {
+				"type": "data",
+				"position": [1, 1]
+			},
+			"2": {
+				"type": "data",
+				"position": [4, 4]
+			},
+			"3": {
+				"type": "data",
+				"position": [1, 4]
+			}
+		},
+		"form": "plus",
+		"x_size": 5,
+		"y_size": 5,
+		"qubits": [
+			{ "id": 0,  "x": 0, "y": 0 },
+			{ "id": 1,  "x": 1, "y": 0 },
+			{ "id": 2,  "x": 2, "y": 0 },
+			{ "id": 3,  "x": 3, "y": 0 },
+			{ "id": 4,  "x": 4, "y": 0 },
+
+			{ "id": 5,  "x": 0, "y": 1 },
+			{ "id": 6,  "x": 1, "y": 1 },
+			{ "id": 7,  "x": 2, "y": 1 },
+			{ "id": 8,  "x": 3, "y": 1 },
+			{ "id": 9,  "x": 4, "y": 1 },
+
+			{ "id": 10,  "x": 0, "y": 2 },
+			{ "id": 11,  "x": 1, "y": 2 },
+			{ "id": 12,  "x": 2, "y": 2 },
+			{ "id": 13,  "x": 3, "y": 2 },
+			{ "id": 14,  "x": 4, "y": 2 },
+
+			{ "id": 15,  "x": 0, "y": 3 },
+			{ "id": 16,  "x": 1, "y": 3 },
+			{ "id": 17,  "x": 2, "y": 3 },
+			{ "id": 18,  "x": 3, "y": 3 },
+			{ "id": 19,  "x": 4, "y": 3 },
+
+			{ "id": 20,  "x": 0, "y": 4 },
+			{ "id": 21,  "x": 1, "y": 4 },
+			{ "id": 22,  "x": 2, "y": 4 },
+			{ "id": 23,  "x": 3, "y": 4 },
+			{ "id": 24,  "x": 4, "y": 4 }
+		],
+		"edges": [
+			{ "id": 0,  "src": 0, "dst": 1 },
+			{ "id": 1,  "src": 1, "dst": 2 },
+			{ "id": 2,  "src": 2, "dst": 3 },
+			{ "id": 3,  "src": 3, "dst": 4 },
+			{ "id": 4,  "src": 0, "dst": 5 },
+			{ "id": 5,  "src": 5, "dst": 3 },
+			{ "id": 6,  "src": 3, "dst": 6 },
+			{ "id": 7,  "src": 6, "dst": 4 },
+			{ "id": 8,  "src": 0, "dst": 2 },
+			{ "id": 9,  "src": 3, "dst": 0 },
+
+			{ "id": 10,  "src": 2, "dst": 0 },
+			{ "id": 11,  "src": 0, "dst": 3 },
+			{ "id": 12,  "src": 3, "dst": 1 },
+			{ "id": 13,  "src": 1, "dst": 4 },
+			{ "id": 14,  "src": 2, "dst": 5 },
+			{ "id": 15,  "src": 5, "dst": 3 },
+			{ "id": 16,  "src": 3, "dst": 6 },
+			{ "id": 17,  "src": 6, "dst": 4 },
+			{ "id": 18,  "src": 0, "dst": 2 },
+			{ "id": 19,  "src": 3, "dst": 0 },
+
+			{ "id": 20,  "src": 2, "dst": 0 },
+			{ "id": 21,  "src": 0, "dst": 3 },
+			{ "id": 22,  "src": 3, "dst": 1 },
+			{ "id": 23,  "src": 1, "dst": 4 },
+			{ "id": 24,  "src": 2, "dst": 5 },
+			{ "id": 25,  "src": 5, "dst": 3 },
+			{ "id": 26,  "src": 3, "dst": 6 },
+			{ "id": 27,  "src": 6, "dst": 4 },
+			{ "id": 28,  "src": 0, "dst": 2 },
+			{ "id": 29,  "src": 3, "dst": 0 },
+
+			{ "id": 30,  "src": 2, "dst": 0 },
+			{ "id": 31,  "src": 0, "dst": 3 },
+			{ "id": 32,  "src": 3, "dst": 1 },
+			{ "id": 33,  "src": 1, "dst": 4 },
+			{ "id": 34,  "src": 2, "dst": 5 },
+			{ "id": 35,  "src": 5, "dst": 3 },
+			{ "id": 36,  "src": 3, "dst": 6 },
+			{ "id": 37,  "src": 6, "dst": 4 },
+			{ "id": 38,  "src": 0, "dst": 2 },
+			{ "id": 39,  "src": 3, "dst": 0 }
+		]
+	},
+
+	"instructions": {
+		"shuttle_up": {
+			"duration": 20,
+			"latency": 0,
+			"matrix": [ [0.0,1.0], [1.0,0.0], [1.0,0.0], [0.0,0.0] ],
+			"cc_light_instr_type": "shuttle",
+			"cc_light_instr": "shuttle_up",
+			"native_operations": [
+				{
+					"from_cycle": 0,
+					"to_cycle": 2,
+					"type": "lower_barrier",
+					"value": "q_1_i"
+				},
+				{
+					"from_cycle": 0,
+					"to_cycle": 3,
+					"type": "qubit_line",
+					"value": "q_1_j - q_1_i < q_1_j - q_1_i - 1"
+                },
+				{
+					"from_cycle": 2,
+                    "to_cycle": 3,
+                    "type": "raise_barrier",
+                    "value": "q_1_i"
+                }
+			]
+		},
+		"shuttle_down": {
+			"duration": 20,
+			"latency": 0,
+			"matrix": [ [0.0,1.0], [1.0,0.0], [1.0,0.0], [0.0,0.0] ],
+			"cc_light_instr_type": "shuttle",
+			"cc_light_instr": "shuttle_down"
+		},
+		"shuttle_left": {
+			"duration": 20,
+			"latency": 0,
+			"matrix": [ [0.0,1.0], [1.0,0.0], [1.0,0.0], [0.0,0.0] ],
+			"cc_light_instr_type": "shuttle",
+			"cc_light_instr": "shuttle_left"
+		},
+		"shuttle_right": {
+			"duration": 20,
+			"latency": 0,
+			"matrix": [ [0.0,1.0], [1.0,0.0], [1.0,0.0], [0.0,0.0] ],
+			"cc_light_instr_type": "shuttle",
+			"cc_light_instr": "shuttle_right"
+		},
+		"prep_x": {
+			"duration": 40,
+			"latency": 0,
+			"matrix": [ [0.0,1.0], [1.0,0.0], [1.0,0.0], [0.0,0.0] ],
+			"cc_light_instr_type": "single_qubit_gate",
+			"cc_light_instr": "prep_x"
+		},
+		"prep_y" : {
+			"duration": 40,
+			"latency": 0,
+			"matrix" : [ [0.0,0.0], [1.0,0.0], [1.0,0.0], [0.0,0.0] ],
+			"cc_light_instr_type": "single_qubit_gate",
+			"cc_light_instr": "prep_y"
+		},
+		"prep_z": {
+			"duration": 40,
+			"latency": 0,
+			"matrix": [ [0.0,1.0], [1.0,0.0], [1.0,0.0], [0.0,0.0] ],
+			"cc_light_instr_type": "single_qubit_gate",
+			"cc_light_instr": "prep_z"
+		},
+		"i" : {
+			"duration": 40,
+			"latency": 0,
+			"matrix" : [ [1.0,0.0], [0.0,0.0], [0.0,0.0], [0.0,1.0] ],
+			"cc_light_instr_type": "single_qubit_gate",
+			"cc_light_instr": "i"
+		},
+		"x": {
+			"duration": 40,
+			"latency": 0,
+			"matrix": [ [0.0,1.0], [1.0,0.0], [1.0,0.0], [0.0,0.0] ],
+			"cc_light_instr_type": "single_qubit_gate",
+			"cc_light_instr": "x"
+		},
+		"y": {
+			"duration": 40,
+			"latency": 0,
+			"matrix": [ [0.0,1.0], [1.0,0.0], [1.0,0.0], [0.0,0.0] ],
+			"cc_light_instr_type": "single_qubit_gate",
+			"cc_light_instr": "y"
+		},
+		"z": {
+			"duration": 40,
+			"latency": 0,
+			"matrix": [ [0.0,1.0], [1.0,0.0], [1.0,0.0], [0.0,0.0] ],
+			"cc_light_instr_type": "single_qubit_gate",
+			"cc_light_instr": "z"
+		},
+		"z_shuttle_left": {
+			"duration": 40,
+			"latency": 0,
+			"matrix": [ [0.0,1.0], [1.0,0.0], [1.0,0.0], [0.0,0.0] ],
+			"cc_light_instr_type": "single_qubit_gate",
+			"cc_light_instr": "z_shuttle_left"
+		},
+		"z_shuttle_right": {
+			"duration": 40,
+			"latency": 0,
+			"matrix": [ [0.0,1.0], [1.0,0.0], [1.0,0.0], [0.0,0.0] ],
+			"cc_light_instr_type": "single_qubit_gate",
+			"cc_light_instr": "z_shuttle_right"
+		},
+		"x90" : {
+			"duration": 40,
+			"latency": 0,
+			"matrix" : [ [0.0,0.0], [1.0,0.0], [1.0,0.0], [0.0,0.0] ],
+			"cc_light_instr_type": "single_qubit_gate",
+			"cc_light_instr": "x90"
+		},
+		"y90" : {
+			"duration": 40,
+			"latency": 0,
+			"matrix" : [ [0.7071068,0.0], [-0.7071068,0.0], [0.7071068,0.0], [ 0.7071068,0.0] ],
+			"cc_light_instr_type": "single_qubit_gate",
+			"cc_light_instr": "y90"
+		},
+		"x180" : {
+			"duration": 40,
+			"latency": 0,
+			"matrix" : [ [0.0,0.0], [1.0,0.0], [1.0,0.0], [0.0,0.0] ],
+			"cc_light_instr_type": "single_qubit_gate",
+			"cc_light_instr": "x180"
+		},
+		"y180" : {
+			"duration": 40,
+			"latency": 0,
+			"matrix" : [ [0.0,0.0], [1.0,0.0], [1.0,0.0], [0.0,0.0] ],
+			"cc_light_instr_type": "single_qubit_gate",
+			"cc_light_instr": "y180"
+		},
+		"mx90" : {
+			"duration": 40,
+			"latency": 0,
+			"matrix" : [ [0.0,0.0], [1.0,0.0], [1.0,0.0], [0.0,0.0] ],
+			"cc_light_instr_type": "single_qubit_gate",
+			"cc_light_instr": "mx90"
+		},
+		"my90" : {
+			"duration": 40,
+			"latency": 0,
+			"matrix" : [ [0.7071068,0.0], [-0.7071068,0.0], [0.7071068,0.0], [ 0.7071068,0.0] ],
+			"cc_light_instr_type": "single_qubit_gate",
+			"cc_light_instr": "my90"
+		},
+		"rx": {
+			"duration": 40,
+			"latency": 0,
+			"matrix": [ [0.0,1.0], [1.0,0.0], [1.0,0.0], [0.0,0.0] ],
+			"cc_light_instr_type": "single_qubit_gate",
+			"cc_light_instr": "rx"
+		},
+		"ry": {
+			"duration": 40,
+			"latency": 0,
+			"matrix": [ [0.0,1.0], [1.0,0.0], [1.0,0.0], [0.0,0.0] ],
+			"cc_light_instr_type": "single_qubit_gate",
+			"cc_light_instr": "ry"
+		},
+		"rz": {
+			"duration": 40,
+			"latency": 0,
+			"matrix": [ [0.0,1.0], [1.0,0.0], [1.0,0.0], [0.0,0.0] ],
+			"cc_light_instr_type": "single_qubit_gate",
+			"cc_light_instr": "rz"
+		},
+		"rx90": {
+			"duration": 40,
+			"latency": 0,
+			"matrix": [ [0.0,1.0], [1.0,0.0], [1.0,0.0], [0.0,0.0] ],
+			"cc_light_instr_type": "single_qubit_gate",
+			"cc_light_instr": "rx90"
+		},
+		"ry180": {
+			"duration": 40,
+			"latency": 0,
+			"matrix": [ [0.0,1.0], [1.0,0.0], [1.0,0.0], [0.0,0.0] ],
+			"cc_light_instr_type": "single_qubit_gate",
+			"cc_light_instr": "ry180"
+		},
+		"h": {
+			"duration": 40,
+			"latency": 0,
+			"matrix": [ [0.0,1.0], [1.0,0.0], [1.0,0.0], [0.0,0.0] ],
+			"cc_light_instr_type": "single_qubit_gate",
+			"cc_light_instr": "h"
+		},
+		"s": {
+			"duration": 40,
+			"latency": 0,
+			"matrix": [ [0.0,1.0], [1.0,0.0], [1.0,0.0], [0.0,0.0] ],
+			"cc_light_instr_type": "single_qubit_gate",
+			"cc_light_instr": "s"
+		},
+		"sdag": {
+			"duration": 40,
+			"latency": 0,
+			"matrix": [ [0.0,1.0], [1.0,0.0], [1.0,0.0], [0.0,0.0] ],
+			"cc_light_instr_type": "single_qubit_gate",
+			"cc_light_instr": "sdag"
+		},
+		"t": {
+			"duration": 40,
+			"latency": 0,
+			"matrix": [ [0.0,1.0], [1.0,0.0], [1.0,0.0], [0.0,0.0] ],
+			"cc_light_instr_type": "single_qubit_gate",
+			"cc_light_instr": "t"
+		},
+		"tdag": {
+			"duration": 40,
+			"latency": 0,
+			"matrix": [ [0.0,1.0], [1.0,0.0], [1.0,0.0], [0.0,0.0] ],
+			"cc_light_instr_type": "single_qubit_gate",
+			"cc_light_instr": "tdag"
+		},
+		"sqswap" : {
+ 			"duration": 80,
+			"matrix" : [ [0.0,0.0], [1.0,0.0], [1.0,0.0], [0.0,0.0] ],
+			"cc_light_instr_type": "two_qubit_gate",
+			"cc_light_instr": "sqswap"
+		},
+		"cz" : {
+			"duration": 80,
+			"matrix" : [ [0.0,0.0], [1.0,0.0], [1.0,0.0], [0.0,0.0] ],
+			"cc_light_instr_type": "two_qubit_gate",
+			"cc_light_instr": "cz"
+		},
+		"measure_left_up": {
+			"duration": 80,
+			"latency": 0,
+			"matrix": [ [0.0,1.0], [1.0,0.0], [1.0,0.0], [0.0,0.0] ],
+			"cc_light_instr_type": "measurement_gate",
+			"cc_light_instr": "measure_left_up"
+		},
+		"measure_left_down": {
+			"duration": 80,
+			"latency": 0,
+			"matrix": [ [0.0,1.0], [1.0,0.0], [1.0,0.0], [0.0,0.0] ],
+			"cc_light_instr_type": "measurement_gate",
+			"cc_light_instr": "measure_left_down"
+		},
+		"measure_right_up": {
+			"duration": 80,
+			"latency": 0,
+			"matrix": [ [0.0,1.0], [1.0,0.0], [1.0,0.0], [0.0,0.0] ],
+			"cc_light_instr_type": "measurement_gate",
+			"cc_light_instr": "measure_right_up"
+		},
+		"measure_right_down": {
+			"duration": 80,
+			"latency": 0,
+			"matrix": [ [0.0,1.0], [1.0,0.0], [1.0,0.0], [0.0,0.0] ],
+			"cc_light_instr_type": "measurement_gate",
+			"cc_light_instr": "measure_right_down"
+		}
+	},
+
+	"gate_decomposition": {
+		"cnot %0, %1": ["Y90 %1", "sqswap %0, %1", "z %0", "sqswap %0, %1", "sdag %0", "sdag %1", "mY90 %1"],
+		"swap %0, %1": ["sqswap %0, %1", "sqswap %0, %1"],
+		"cswap %0. %1, %2": ["cnot %2, %1", "ccnot"]
+	}
+}

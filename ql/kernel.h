@@ -604,10 +604,10 @@ public:
                 std::replace( sub_ins.begin(), sub_ins.end(), ',', ' ');
                 DOUT(" after comma removal, sub ins: " << sub_ins);
                 std::istringstream iss(sub_ins);
-
+                
                 std::vector<std::string> tokens{ std::istream_iterator<std::string>{iss},
                                                  std::istream_iterator<std::string>{} };
-
+      
                 std::vector<size_t> this_gate_qubits;
                 std::string & sub_ins_name = tokens[0];
 
@@ -710,13 +710,16 @@ public:
 
                 std::vector<std::string> tokens{ std::istream_iterator<std::string>{iss},
                                                  std::istream_iterator<std::string>{} };
-
+       
                 std::vector<size_t> this_gate_qubits;
                 std::string & sub_ins_name = tokens[0];
 
                 for(size_t i=1; i<tokens.size(); i++)
                 {
-                    this_gate_qubits.push_back( all_qubits[ stoi( tokens[i].substr(1) ) ] );
+                    if (tokens[i].substr(0, 1) == "%")
+                    {
+                        this_gate_qubits.push_back( all_qubits[ stoi( tokens[i].substr(1) ) ] );
+                    }
                 }
 
                 DOUT( ql::utils::to_string<size_t>(this_gate_qubits, "actual qubits of this gate:") );

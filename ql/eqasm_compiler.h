@@ -32,6 +32,10 @@ namespace ql
 
     public:
 
+        virtual void pre_compile(std::string prog_name, std::vector<quantum_kernel> kernels, const ql::quantum_platform& plat)
+        {
+        }
+        
         /*
 	     * compile must be implemented by all compilation backends.
          * compiles a single (fused) circuit
