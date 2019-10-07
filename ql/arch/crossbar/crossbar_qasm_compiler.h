@@ -121,10 +121,10 @@ public:
             dynamic_mapping_decompose(prog_name, kernels, platform);
 
             DOUT("DYNAMIC DECOMPOSITION DONE !!");
-            
+
             //exit(1);
         }
-        
+
         // For first iteration
         crossbar_state_t* temp_initial_crossbar_state;
         crossbar_state_t* temp_final_crossbar_state = this->get_init_crossbar_state(platform);
@@ -136,14 +136,14 @@ public:
         {
             IOUT("Compiling kernel: " << kernel.name);
             ql::circuit& ckt = kernel.c;
-            
+
             if (!ckt.empty())
             {
                 temp_initial_crossbar_state = temp_final_crossbar_state;
                 temp_final_crossbar_state = this->get_final_crossbar_state(temp_initial_crossbar_state, kernel);
-                
+
                 size_t num_sites = temp_final_crossbar_state->get_total_sites();
-                
+
                 // Schedule with platform resource constraints
                 ql::ir::bundles_t bundles = crossbar_scheduler::schedule_rc(
                     ckt, platform,
@@ -153,12 +153,12 @@ public:
 
                 // Translate sites back to qubits
                 sites_to_real(bundles, temp_initial_crossbar_state);
-                
+
                 before_qasm_ins_str << "" + ql::ir::qasm(bundles) + "\n";
-                
+
                 // Decompose instructions for SINGLE GATES
                 decompose_single_gates(bundles, temp_initial_crossbar_state);
-                
+
                 // Convert to string
                 qasm_ins_str << "" + ql::ir::qasm(bundles) + "\n";
 
@@ -169,7 +169,7 @@ public:
         std::string b_file_name = "" + prog_name + "_b_compiled";
         IOUT("Writing Crossbar cQASM compiled to " + b_file_name);
         write_to_file(b_file_name, before_qasm_ins_str.str());
-        
+
         std::string file_name = "" + prog_name + "_compiled";
         IOUT("Writing Crossbar cQASM compiled to " + file_name);
         qasm_ins_str << "\n\n# Total depth: " << std::to_string(total_depth) << "\n";
@@ -179,7 +179,7 @@ public:
     }
 
 private:
-    
+
     bool is_single_gate(std::string name)
     {
         return !(name.compare("swap") == 0 || name.compare("move") == 0
@@ -403,9 +403,13 @@ private:
         
         // Set to new kernels
         kernels = new_kernels;
-        
+        if (kernels.back().get_circuit().size() == 0)
+        {
+            kernels.pop_back();
+        }
+
         std::stringstream qasm_ins_str;
-        for (auto& kernel: kernels)
+        for (auto& kernel : kernels)
         {
             qasm_ins_str << "" + kernel.qasm() + "\n";
         }
@@ -460,7 +464,7 @@ private:
         
         return kernels;
     }
-    
+
     void dynamic_mapping_decompose(std::string prog_name, std::vector<quantum_kernel>& kernels, const ql::quantum_platform& platform)
     {
         // TODO
@@ -516,7 +520,7 @@ private:
                 {
                     // Decompose SQSWAP and CZ
                     std::pair<size_t, size_t> pos_b = crossbar_state->get_pos_by_qubit(qubits[1]);
-                    
+
                     if (name.compare("sqswap") == 0)
                     {
                         // SQSWAP
@@ -551,7 +555,7 @@ private:
                     }
                 }
                 else if (name.rfind("z") == 0 || name.rfind("s") == 0 || name.rfind("t") == 0)
-                {   
+                {
                     // Decompose Z, S & T into shuttles
                     /*if (pos_a.second > 0 && pos_a.second < n - 1)
                     {
