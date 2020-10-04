@@ -499,8 +499,8 @@ class quantum_program
             backend_compiler->pre_compile(name, kernels, platform);
          }
          
-         schedule();
-
+         //schedule();
+         
          if (backend_compiler == NULL)
          {
             WOUT("no eqasm compiler has been specified in the configuration file, only qasm code has been compiled.");
@@ -510,11 +510,11 @@ class quantum_program
          {
             backend_compiler->compile(name, kernels, platform);
 
-            IOUT("writing eqasm code to '" << ( ql::options::get("output_dir") + "/" + name+".asm"));
-            backend_compiler->write_eqasm( ql::options::get("output_dir") + "/" + name + ".asm");
+            //IOUT("writing eqasm code to '" << ( ql::options::get("output_dir") + "/" + name+".asm"));
+            //backend_compiler->write_eqasm( ql::options::get("output_dir") + "/" + name + ".asm");
          }
 
-         if (sweep_points.size())
+         /*if (sweep_points.size())
          {
             std::stringstream ss_swpts;
             ss_swpts << "{ \"measurement_points\" : [";
@@ -542,7 +542,7 @@ class quantum_program
          else
          {
             EOUT("cannot write sweepoint file : sweep point array is empty !");
-         }
+         }*/
 
          IOUT("compilation of program '" << name << "' done.");
          IOUT("=============================================");

@@ -64,17 +64,23 @@ public:
     /**
      * Pre-compile the qasm code
      */
-    void pre_compile(std::string prog_name, std::vector<quantum_kernel>& kernels, ql::quantum_platform& platform)
+    void pre_compile(std::string prog_name, std::vector<quantum_kernel> kernels, const ql::quantum_platform& plat)
     {
         IOUT("Pre-compiling kernels for Crossbar cQASM");
         
         // Crossbar HW params
         load_hw_settings(platform);
         
-        // Translate qubits to sites
+        // Translate virtual qubits to sites
         if (ql::options::get("mapper") == "no")
         {
-            kernels = real_to_sites(kernels, platform);
+            // Mapping (virtual to real) is one-to-one
+            
+            // HACK: remove const modifier
+            //ql::quantum_platform& platform = const_cast<ql::quantum_platform&>(plat);
+            
+            // Convert real qubits to sites
+            //kernels = real_to_sites(kernels, platform);
         }
     }
     
@@ -88,7 +94,7 @@ public:
     
     /**
      * Compile a list of kernels
-     */
+     */    
     void compile(std::string prog_name, std::vector<quantum_kernel> kernels, const ql::quantum_platform& platform)
     {
         DOUT("Compiling " << kernels.size() << " kernels to generate Crossbar cQASM ... ");
@@ -116,15 +122,15 @@ public:
             fake_sites_to_real_qubits(prog_name, kernels, platform);
             
             DOUT("FAKE SITES TO REAL QUBITS DONE !!");
-            
-            // Dynamic decomposition
-            dynamic_mapping_decompose(prog_name, kernels, platform);
-
-            DOUT("DYNAMIC DECOMPOSITION DONE !!");
 
             //exit(1);
         }
+        
+        // Dynamic decomposition
+        dynamic_mapping_decompose(prog_name, kernels, platform);
 
+        DOUT("DYNAMIC DECOMPOSITION DONE !!");
+        
         // For first iteration
         crossbar_state_t* temp_initial_crossbar_state;
         crossbar_state_t* temp_final_crossbar_state = this->get_init_crossbar_state(platform);
@@ -654,7 +660,7 @@ private:
     }
     
     /**
-     * REAL QUBITS => SITES
+     * QUBITS => SITES
      */
     void transform_and_execute(ql::circuit& ckt, crossbar_state_t* crossbar_state)
     {
@@ -669,13 +675,22 @@ private:
             size_t qubit_index = qubits[0];
             
             // Translate qubits ti sites
+            std::string qubit_str = "";
+            std::string sites_str = "";
             for (size_t key = 0; key < qubits.size(); key++)
             {
+                if (key > 0)
+                {
+                    qubit_str = qubit_str + std::string(" ");
+                    sites_str = sites_str + std::string(" ");
+                }
+                qubit_str = qubit_str + std::to_string(qubits[key]);
                 sites[key] = crossbar_state->get_site_by_qubit(qubits[key]);
+                sites_str = sites_str + std::to_string(sites[key]);
             }
             
             DOUT(std::string("Converting: ") + op_name
-                    + " q " + std::to_string(qubit_index) + " -> s " + std::to_string(sites[0])
+                    + " q " + qubit_str + " -> s " + sites_str
             );
 
             if (op_name.rfind("shuttle_") == 0)
@@ -763,18 +778,18 @@ private:
     }
     
     /**
-     * Convert instructions operands from qubits to sites
+     * Convert instructions operands from real qubits to crossbar sites
      * 
      * Note: this also adds a second site for the dependency graph
      */
     std::vector<quantum_kernel> real_to_sites(std::vector<quantum_kernel> kernels, ql::quantum_platform& platform)
     {
-        IOUT("Translating qubits to sites");
+        IOUT("Translating real qubits to sites");
         
         // Init crossbar state with initial placement
         crossbar_state_t* crossbar_state = this->get_init_crossbar_state(platform);
         
-        // Set new number of "qubits"
+        // Set new number of "qubits" (= number of sites)
         platform.qubit_number = crossbar_state->get_x_size() * crossbar_state->get_y_size();
         
         for (auto &kernel : kernels)
